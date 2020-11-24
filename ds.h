@@ -27,6 +27,7 @@ struct pduD {
 };
 
 struct pduT { 
+  char type;
   char peerName[10];
   char contentName[10];
 };
