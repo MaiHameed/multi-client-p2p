@@ -18,7 +18,6 @@ char peerName[11];                          // Holds the user name, same name pe
 // Variables for connecting to the index server
 char	*host = "localhost";                // Default host
 int		port = 3000;                        // Default port
-struct 	sockaddr_in sin;                    // An internet endpoint address
 int		s_udp, n, type;	                    // socket descriptor and socket type	
 struct 	hostent	*phe;	                    // pointer to host information entry	
 
@@ -151,6 +150,8 @@ int main(int argc, char **argv){
 			fprintf(stderr, "usage: UDP Connection to Index Server [host] [port]\n");
 			exit(1);
 	}
+
+    struct 	sockaddr_in sin;                    // An internet endpoint address
     
     // Generate a UDP connection to the index server
     // Map host name to IP address, allowing for dotted decimal 
