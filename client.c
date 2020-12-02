@@ -45,12 +45,11 @@ void registerContent(){
     int readLength;                         // Length of incoming data bytes from index server
     int s_tcp;                              // TCP socket
 
-    /* Create a TCP stream socket	*/	
+    // Create a TCP stream socket	
 	if ((s_tcp = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		fprintf(stderr, "Can't create tcp socket\n");
+		fprintf(stderr, "Can't create a TCP socket\n");
 		exit(1);
 	}
-		
 	content_server_sin.sin_family = AF_INET;
 	content_server_sin.sin_port = htons(0);
 	content_server_sin.sin_addr.s_addr = htonl(INADDR_ANY);
