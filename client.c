@@ -136,8 +136,6 @@ void registerContent(){
 
 int main(int argc, char **argv){
     
-    char    userChoice;                         // Represents user selection at application runtime
-    
     // Checks input arguments and assigns host:port connection to server
     switch (argc) {
 		case 1:
@@ -185,6 +183,7 @@ int main(int argc, char **argv){
     printf("Welcome %s!\n\n", peerName);
 
     // Main control loop
+    char userChoice;     
     while(1){
         // Prompt user to select task
         printTasks();
