@@ -17,7 +17,8 @@ struct pduR {
 	char type;
   char peerName[10];
   char contentName[10];
-  char address[80]; // Schema: `IP:Port` (ie. 192.168.0.1:4000)
+  int host; // Schema: `IP:Port` (ie. 192.168.0.1:4000)
+  int port;
 };
 
 struct pduD {
