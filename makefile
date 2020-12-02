@@ -2,9 +2,13 @@ CC=gcc
 CFLAGS=-lnsl
 BINDIR = bin
 
-make : server.c
+server : server.c 
 	mkdir -p bin
 	$(CC) -o bin/server server.c $(CFLAGS)
+
+client: client.c
+	mkdir -p bin
+	$(CC) -o bin/client client.c $(CFLAGS)
 
 .PHONY: clean
 
