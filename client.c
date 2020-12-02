@@ -11,6 +11,8 @@
 // Header file that specified PDU struct
 #include "ds.h"
 
+#define	BUFLEN      100     // Max 100 bytes per packet
+
 /*
 Things that a client/peer can do:
 1 - Content Registration
@@ -19,7 +21,6 @@ Things that a client/peer can do:
 4 - Content De-registration
 5 - Quit
 */
-
 void printTasks(){
     printf("Choose a task:\n");
     printf("    R: Register content to the index server\n");
@@ -29,9 +30,90 @@ void printTasks(){
     printf("    Q: To de-register all content from the server and quit as a peer\n");
 }
 
-void registerContent(){
+void registerContent(int s){
+    struct pduR packetR;
     int validPeerName = 0;
     int validContentName = 0;
+    int acknowledgedFromIndex = 0;
+    char input[101];
+    char writeMsg[101];
+    int readLength;
+
+    printf("TODO: Implement opening a TCP socket for content downloading HERE\n");
+    /*
+        The below while loop encloses the generation and sending of an R type data packet
+        from the peer to the server. The while loop exits after receiving acknowledgement
+        from the server
+    */
+    while(!acknowledgedFromIndex){
+        // The below check will ensure a valid user input for the peer name
+        printf("Enter a valid peer name, 9 characters or less:\n");
+        while(!validPeerName){
+            scanf("%s", input);         // Get user input for peer name
+            if(strlen(input) < 10){
+                validPeerName = 1;      // A valid peer name is less than 10 characters
+            }else{
+                printf("Peer name must be 9 characters or less, try again\n");
+            }
+        }
+        memcpy(packetR.peerName, input, 10);
+
+        // The below check will ensure a valid user input for the content name
+        printf("Enter a valid content name, 9 characters or less:\n");
+        while(!validContentName){
+            scanf("%s", input);         // Get user input for content name
+            if(strlen(input) < 10){
+                validContentName = 1;   // A valid content name is less than 10 characters
+            }else{
+                printf("Content name must be 9 characters or less, try again\n");
+            }
+        }
+        memcpy(packetR.contentName, input, 10);
+        packetR.type = 'R';
+
+        fprintf(stderr, "Packet Type: %c\n", packetR.type);
+        fprintf(stderr, "Packet peerName: %s\n", packetR.peerName);
+        fprintf(stderr, "Packet contentName: %s\n", packetR.contentName);
+
+        // Sends the R data packet to the index server
+        write(s, &packetR, BUFLEN);     
+        
+        // Wait for message from the server and check the first byte of packet to determine the PDU type (A or E)
+        readLength = read(s, input, BUFLEN);
+        switch(input[0]){       
+            case 'E':
+                struct pduE packetE;
+                int i = 1;
+
+                // Copies incoming packet into a PDU-E struct
+                packetE.type = input[0];
+                while(input[i] != '\0'){ 
+                    packetE.errMsg[i-1] = input[i];
+                }
+
+                // Output to user
+                printf("Error registering content:\n");
+                printf("    %s:\n", packetE.errMsg);
+                break;
+            case 'A':
+                struct pduA packetA;
+                int i = 1;
+
+                // Copies incoming packet into a PDU-A struct
+                packetA.type = input[0];
+                while(input[i] != '\0'){ 
+                    packetA.peerName[i-1] = input[i];
+                }
+
+                // Output to user
+                printf("The following content has been successfully registered:\n");
+                printf("    Peer Name: %s\n", packetA.peerName);
+                acknowledgedFromIndex = 1;
+                break;
+            default:
+                printf("Unable to read incoming message from server\n");
+        }
+    }
 }
 
 int main(int argc, char **argv){
@@ -54,7 +136,7 @@ int main(int argc, char **argv){
             break;
 		case 3:
 			host = argv[1];
-			port = argv[2];
+			port = atoi(argv[2]);
 			break;
 		default:
 			fprintf(stderr, "usage: UDP Connection to Index Server [host] [port]\n");
@@ -91,7 +173,7 @@ int main(int argc, char **argv){
         // Perform task
         switch(userChoice){
             case 'R':
-                registerContent();
+                registerContent(s);
                 break;
             case 'D':
                 break;
