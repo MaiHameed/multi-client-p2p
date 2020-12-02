@@ -1,3 +1,14 @@
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <sys/socket.h>                                                                            
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+
+// Header file that specified PDU struct
 #include "ds.h"
 
 /*
@@ -19,8 +30,8 @@ void printTasks(){
 }
 
 void registerContent(){
-    bool validPeerName = false;
-    bool validContentName = false;
+    int validPeerName = 0;
+    int validContentName = 0;
 }
 
 int main(int argc, char **argv){
@@ -29,8 +40,9 @@ int main(int argc, char **argv){
     char	*host = "localhost";                // Default host
     int		port = 3000;                        // Default port
     struct 	sockaddr_in sin;                    // An internet endpoint address
-    int		s, n, type;	/* socket descriptor and socket type	*/
-    
+    int		s, n, type;	                        // socket descriptor and socket type	
+    struct 	hostent	*phe;	                    // pointer to host information entry	
+
     char    userChoice;                         // Represents user selection at application runtime
     
     // Checks input arguments and assigns host:port connection to server
