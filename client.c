@@ -13,14 +13,23 @@
 
 #define	BUFLEN      100     // Max 100 bytes per packet
 
+// Globals
+char peerName[11];                          // Holds the user name, same name per instance of client
+// Variables for connecting to the index server
+char	*host = "localhost";                // Default host
+int		port = 3000;                        // Default port
+struct 	sockaddr_in sin;                    // An internet endpoint address
+int		s_udp, n, type;	                    // socket descriptor and socket type	
+struct 	hostent	*phe;	                    // pointer to host information entry	
+
 void printTasks(){
     printf("Choose a task:\n");
     printf("    R: Register content to the index server\n");
     printf("    T: De-register content\n");
     printf("    D: Download content\n");
     printf("    O: List all the content available on the index server\n");
-    printf("    L: List all local content registered");
-    printf("    Q: To de-register all content from the server and quit as a peer\n");
+    printf("    L: List all local content registered\n");
+    printf("    Q: To de-register all local content from the server and quit\n");
 }
 
 void registerContent(){
@@ -29,13 +38,12 @@ void registerContent(){
     struct	sockaddr_in server;             // To generate a TCP connection to index server
     struct 	sockaddr_in content_server_sin;
     
-    int validPeerName = 0;                  // Flag to check validity of user provided peer name
     int validContentName = 0;               // Flag to check validity of user provided content name
     int acknowledgedFromIndex = 0;          // Flag to verify acknowledgement from index server
     char input[101];                        // Temp placeholder for user or index server input
     char writeMsg[101];                     // Temp placeholder for outgoing messages to index server
     int readLength;                         // Length of incoming data bytes from index server
-    int s_tcp;
+    int s_tcp;                              // TCP socket
 
     /* Create a TCP stream socket	*/	
 	if ((s_tcp = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -54,9 +62,9 @@ void registerContent(){
 		fprintf(stderr, "Can't get TCP socket name %d\n", s_tcp);
 		exit(1);
 	}
-    printf("Successfully generated a TCP socket\n");
-	printf("TCP socket address %d\n", content_server_sin.sin_addr.s_addr);
-	printf("TCP socket port %d\n", content_server_sin.sin_port);
+    fprintf(stderr, "Successfully generated a TCP socket\n");
+	fprintf(stderr, "TCP socket address %d\n", content_server_sin.sin_addr.s_addr);
+	fprintf(stderr, "TCP socket port %d\n", content_server_sin.sin_port);
 
     /*
         The below while loop encloses the generation and sending of an R type data packet
@@ -64,18 +72,6 @@ void registerContent(){
         from the server
     */
     while(!acknowledgedFromIndex){
-        // The below check will ensure a valid user input for the peer name
-        printf("Enter a valid peer name, 9 characters or less:\n");
-        while(!validPeerName){
-            scanf("%s", input);         // Get user input for peer name
-            if(strlen(input) < 10){
-                validPeerName = 1;      // A valid peer name is less than 10 characters
-            }else{
-                printf("Peer name must be 9 characters or less, try again\n");
-            }
-        }
-        memcpy(packetR.peerName, input, 10);
-
         // The below check will ensure a valid user input for the content name
         printf("Enter a valid content name, 9 characters or less:\n");
         while(!validContentName){
@@ -87,6 +83,7 @@ void registerContent(){
             }
         }
         memcpy(packetR.contentName, input, 10);
+        memcpy(packetR.peerName, peerName, 10);
         packetR.type = 'R';
 
         fprintf(stderr, "Packet Type: %c\n", packetR.type);
@@ -98,51 +95,48 @@ void registerContent(){
         
         // Wait for message from the server and check the first byte of packet to determine the PDU type (A or E)
         readLength = read(s_udp, input, BUFLEN);
+        int i = 0;
+        struct pduE packetE;                    // Potential responses from the index server
+        struct pduA packetA;
         switch(input[0]){       
             case 'E':
-                struct pduE packetE;
-                int i = 1;
-
                 // Copies incoming packet into a PDU-E struct
                 packetE.type = input[0];
                 while(input[i] != '\0'){ 
                     packetE.errMsg[i-1] = input[i];
+                    i++;
                 }
 
                 // Output to user
                 printf("Error registering content:\n");
                 printf("    %s:\n", packetE.errMsg);
+                printf("\n");
                 break;
             case 'A':
-                struct pduA packetA;
-                int i = 1;
-
                 // Copies incoming packet into a PDU-A struct
                 packetA.type = input[0];
                 while(input[i] != '\0'){ 
                     packetA.peerName[i-1] = input[i];
+                    i++;
                 }
 
                 // Output to user
                 printf("The following content has been successfully registered:\n");
                 printf("    Peer Name: %s\n", packetA.peerName);
+                printf("    Content Name: %s\n", packetR.contentName);
+                printf("    Address: %s", content_server_sin.sin_addr.s_addr);
+                printf("    Port Number: ", content_server_sin.sin_port);
+                printf("\n");
                 acknowledgedFromIndex = 1;
                 break;
             default:
-                printf("Unable to read incoming message from server\n");
+                printf("Unable to read incoming message from server\n\n");
         }
     }
 }
 
 int main(int argc, char **argv){
     
-    // Variables for connecting to the index server
-    char	*host = "localhost";                // Default host
-    int		port = 3000;                        // Default port
-    struct 	sockaddr_in sin;                    // An internet endpoint address
-    int		s_udp, n, type;	                        // socket descriptor and socket type	
-    struct 	hostent	*phe;	                    // pointer to host information entry	
-
     char    userChoice;                         // Represents user selection at application runtime
     
     // Checks input arguments and assigns host:port connection to server
@@ -181,6 +175,16 @@ int main(int argc, char **argv){
     printf("Welcome to the P2P Network!\n");
 	printf("=============================\n");
     
+    // TODO: Handle edge case for when username matches another in the server, should be handled by
+    // the registration component
+    printf("Please enter a username:\n");
+    while(read (0, peerName, sizeof(peerName)) > 10){
+        printf("User name is too long, please keep it 9 characters or less:\n");
+    }
+    // Change last char to a null termination instead of newline, for purely aesthetic formatting purposes only
+    peerName[strlen(peerName)-1] = '\0'; 
+    printf("Welcome %s!\n\n", peerName);
+
     // Main control loop
     while(1){
         // Prompt user to select task
