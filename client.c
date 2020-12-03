@@ -87,14 +87,33 @@ void registerContent(){
 
         // Parse the pduR type into default pdu type for transmission
         // sendPacket.data = [peerName]+[contentName]+[host]+[port]
+        memset(&sendPacket, '\0', sizeof(sendPacket));          // Sets terminating characters to all elements
+        int dataOffset = 0;
+
         sendPacket.type = packetR.type;
-        strcpy(sendPacket.data, packetR.peerName);
-        strcat(sendPacket.data, packetR.contentName);
-        strcat(sendPacket.data, packetR.host);
-        strcat(sendPacket.data, packetR.port);
+        memcpy(sendPacket.data + dataOffset, 
+                packetR.peerName, 
+                sizeof(packetR.peerName));
+        dataOffset += sizeof(packetR.peerName);
+        memcpy(sendPacket.data + dataOffset, 
+                packetR.contentName,
+                sizeof(packetR.contentName));
+        dataOffset += sizeof(packetR.contentName);
+        memcpy(sendPacket.data + dataOffset, 
+                packetR.host,
+                sizeof(packetR.host));
+        dataOffset += sizeof(packetR.host);
+        memcpy(sendPacket.data + dataOffset, 
+                packetR.port,
+                sizeof(packetR.port));
+
         fprintf(stderr, "Parsed the R type PDU into the following general PDU:\n");
         fprintf(stderr, "    Type: %c\n", sendPacket.type);
         fprintf(stderr, "    Data: %s\n", sendPacket.data);
+        int m;
+        for(m = 0; m <= sizeof(sendPacket.data)-1; m++){
+            fprintf(stderr, "%d: %c\n", m, sendPacket.data[m]);
+        }
         fprintf(stderr, "\n");
 
         // Sends the data packet to the index server
