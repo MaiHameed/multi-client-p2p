@@ -133,6 +133,7 @@ int main(int argc, char *argv[])
           }
           r_host = atoi(packetR.host);
           r_port = atoi(packetR.port);
+         
          errorFlag=0; 
          for(i=0;i<endPointer;i++){
            fprintf(stderr, "ARRAY ELEMENT %s %s %d %d\n", contentList[i].contentName, contentList[i].peerName,contentList[i].port, contentList[i].host);
@@ -142,7 +143,7 @@ int main(int argc, char *argv[])
              break;
            }
            // PeerName and Address Mismatch
-           else if (strcmp(contentList[i].peerName, packetR.peerName) ==0 && (contentList[i].host != r_host)) {
+           else if (strcmp(contentList[i].peerName, packetR.peerName)==0 && !(contentList[i].host == r_host)) {
              errorFlag=2;
              break;
            }
@@ -187,9 +188,10 @@ int main(int argc, char *argv[])
             // Send Err Packet
             packetsend.type = 'E';
             memset(packetsend.data, '\0', 100);
-            if (errorFlag=2)
+            if (errorFlag==2) {
 					    strcpy(packetsend.data,"PeerName has already been registered");
-            else if (errorFlag=1) {
+            }
+            else if (errorFlag==1) {
               strcpy(packetsend.data,"File Already Registered Error");
             }
             fprintf(stderr,"Error\n");
