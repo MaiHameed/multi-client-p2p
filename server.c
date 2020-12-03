@@ -62,11 +62,16 @@ int main(int argc, char *argv[])
   contentListing contentList[10];
   contentListing tempContentBlock;
   char lsList[10][10];
+  
+  int lsPointer = 0;
   int endPointer = 0;
+  
   int match = 0;
+  int lsmatch = 0;
 
   // Transmission Variables
   struct  tpacket packetrecieve;
+  struct  tpacket packetsend;
   int     r_host, r_port;
 
   // Socket Primitives
@@ -80,7 +85,6 @@ int main(int argc, char *argv[])
 	int 	  port = 3000;              /* default port */
 	int 	  counter, n,m,i,bytes_to_read,bufsize;
   int     errorFlag = 0;
-
 
 	switch(argc){
 		case 1:
@@ -120,16 +124,16 @@ int main(int argc, char *argv[])
           for(i=0;i<10;i++){
               packetR.peerName[i] = packetrecieve.data[i];        // 0:9
               packetR.contentName[i] = packetrecieve.data[i+10];  // 10:19
-              if (i<6) {
+              if (i<5) {
                 packetR.host[i] = packetrecieve.data[i+20];       // 20:25
               }
-              if (i<5) {
-                packetR.port[i] = packetrecieve.data[i+26];       // 26:31
+              if (i<6) {
+                packetR.port[i] = packetrecieve.data[i+25];       // 26:31
               }
           }
           r_host = atoi(packetR.host);
           r_port = atoi(packetR.port);
-
+         errorFlag=0; 
          for(i=0;i<endPointer;i++){
            fprintf(stderr, "ARRAY ELEMENT %s %s %d %d\n", contentList[i].contentName, contentList[i].peerName,contentList[i].port, contentList[i].host);
            // Content has already been uploaded by Peer
@@ -146,7 +150,22 @@ int main(int argc, char *argv[])
 
           /*  Send Reply  */
           if (errorFlag==0){
-            // Commit Content
+
+            // New Content? 
+            lsmatch=0;
+            for(i=0;i<lsPointer;i++){
+              if (strcmp(lsList[i], packetR.contentName) == 0){
+                lsmatch = lsmatch+1;
+                break;
+              }
+            }
+            // If So, Commit Content ls List
+            if (!lsmatch) {
+              strcpy(lsList[lsPointer],packetR.contentName);
+              lsPointer = lsPointer + 1;
+            }
+
+            // Commit Content to contentList
             memset(&contentList[endPointer],'\0', sizeof(contentList[endPointer])); // Clean Struct
             strcpy(contentList[endPointer].contentName,packetR.contentName);
             strcpy(contentList[endPointer].peerName,packetR.peerName);
@@ -159,25 +178,25 @@ int main(int argc, char *argv[])
             endPointer = endPointer +=1; // Increment pointer to NEXT block
             
             // Send Ack Packet
-            packetA.type = 'A';
-            memset(packetA.peerName, '\0', 10);
-            strcpy(packetA.peerName, packetR.peerName);
-            sendto(s, &packetA, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
-            fprintf(stderr, "Acked\n");
-          }
-          else if (errorFlag=2) {
-            // Send Err Packet
-            packetE.type = 'E';
-            memset(packetE.errMsg, '\0', 100);
-					  strcpy(packetE.errMsg,"PeerName has already been registered");
-					  sendto(s, &packetE, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
+            packetsend.type = 'A';
+            memset(packetsend.data, '\0', 10);
+            strcpy(packetsend.data, packetR.peerName);
+            fprintf(stderr, "Acked\n"); 
           }
           else {
             // Send Err Packet
-            packetE.type = 'E';
-            memset(packetE.errMsg, '\0', 100);
-					  strcpy(packetE.errMsg,"File Already Registered Error");
-					  sendto(s, &packetE, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
+            packetsend.type = 'E';
+            memset(packetsend.data, '\0', 100);
+            if (errorFlag=1)
+					    strcpy(packetsend.data,"PeerName has already been registered");
+            else if (errorFlag=2) {
+              strcpy(packetsend.data,"File Already Registered Error");
+            }
+            fprintf(stderr,"Error\n");
+          }
+          sendto(s, &packetsend, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
+          for(i=0;i<lsPointer;i++){
+              fprintf(stderr, "LS LIST %s\n", lsList[i]);
           }
           break;
         
@@ -220,26 +239,67 @@ int main(int argc, char *argv[])
             contentList[endPointer].port = tempContentBlock.port;
             endPointer = endPointer+1;
 
-            // Send S Packet with host and port
-            // 
+            // TODO: Send S Packet with host and port
           }
           else {
             // Send Error Message
-            packetE.type = 'E';
-            memset(packetE.errMsg, '\0', 100);
-					  strcpy(packetE.errMsg,"Content Not Found");
-					  sendto(s, &packetE, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
+            packetsend.type = 'E';
+            memset(packetsend.data, '\0', 100);
+					  strcpy(packetsend.data,"Content Not Found");
+					  sendto(s, &packetsend, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           }
           break;
         
         /* Peer Server Content List Request */
         case 'O':
+          fprintf(stderr, "O Type Packets \n");
           // We don't care about the data in this one
+          memset(packetsend.data, '\0', 100);
+          
+          for(i=0;i<lsPointer;i++){
+            memcpy(packetsend.data+i*10, lsList[i], 10);
+          }
+          fprintf(stderr, "Here's the list! %s\n", packetsend.data);
+          fprintf(stderr,"Second part of the list %s\n", packetsend.data+10);
+          sendto(s, &packetsend, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           break;
         
         /* Peer Server Content De-registration */
         case 'T':
+          // Localize Content
+          memset(&packetT,'\0', sizeof(packetT));
+          for(i=0;i<10;i++){
+              packetT.peerName[i] = packetrecieve.data[i];        // 0:9
+              packetT.contentName[i] = packetrecieve.data[i+10];  // 10:19
+          }
+          // Remove the Content
+          match = 0;
+          for(i=0;i<endPointer;i++){
+            if ((strcmp(packetT.peerName, contentList[i].peerName) == 0) && strcmp(packetT.contentName, contentList[i].contentName)){
+              match=1; 
+            }
+            // If content is found, shift all content down queue
+            if (match && i < endPointer-1){
+              strcpy(contentList[i].contentName,contentList[i+1].contentName);
+              strcpy(contentList[i].peerName, contentList[i+1].peerName);
+              contentList[i].host = contentList[i+1].host;
+              contentList[i].port = contentList[i+1].port;
+            }
+          }
+          if (match) {
+            endPointer = endPointer -1;
+            packetsend.type = 'A';
+            memset(packetsend.data, '\0', 10);
+            strcpy(packetsend.data, packetT.peerName);
+          }
+          else {
+            packetsend.type = 'E';
+            memset(packetsend.data, '\0', 10);
+            strcpy(packetsend.data, "File Removal Error");
+          }
+          sendto(s, &packetsend, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           break;
+
         default:
           break;
       } 
@@ -260,6 +320,5 @@ Content Listing (O)
 Content De-registration (T)
   - (A) Ack
   - (E) Error
-
   Note: when quitting, a bunch of T types may be sent
 */
