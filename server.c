@@ -315,7 +315,6 @@ int main(int argc, char *argv[])
               lsPointer = lsPointer -1;
             }
 
-            endPointer = endPointer -1;
             packetsend.type = 'A';
             memset(packetsend.data, '\0', 10);
             strcpy(packetsend.data, packetT.peerName);
