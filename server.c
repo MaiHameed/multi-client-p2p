@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
   
   int match = 0;
   int lsmatch = 0;
+  int unique = 1;
 
   // Transmission Variables
   struct  tpacket packetrecieve;
@@ -85,6 +86,7 @@ int main(int argc, char *argv[])
 	int 	  port = 3000;              /* default port */
 	int 	  counter, n,m,i,bytes_to_read,bufsize;
   int     errorFlag = 0;
+
 
 	switch(argc){
 		case 1:
@@ -277,8 +279,9 @@ int main(int argc, char *argv[])
           // Remove the Content
           match = 0;
           for(i=0;i<endPointer;i++){
-            if ((strcmp(packetT.peerName, contentList[i].peerName) == 0) && strcmp(packetT.contentName, contentList[i].contentName)){
-              match=1; 
+            if ((strcmp(packetT.peerName, contentList[i].peerName) == 0) && strcmp(packetT.contentName, contentList[i].contentName)==0){
+              match=1;
+              fprintf(stderr, "File gettting MOVED %s %s %d %d\n", contentList[i].contentName, contentList[i].peerName,contentList[i].port, contentList[i].host);
             }
             // If content is found, shift all content down queue
             if (match && i < endPointer-1){
@@ -288,7 +291,30 @@ int main(int argc, char *argv[])
               contentList[i].port = contentList[i+1].port;
             }
           }
+
+
           if (match) {
+            unique = 1; 
+            // Check if unique, if so,
+            endPointer = endPointer -1; 
+            for(i=0;i<endPointer;i++){
+              if (strcmp(packetT.contentName, contentList[i].contentName)==0){
+                unique = 0;
+              }
+            }
+            match = 0;
+            if (unique){
+              for(i=0;i<lsPointer;i++){
+                if (strcmp(packetT.contentName, lsList[i])==0) {
+                  match=1;
+                }
+                if (match && i < lsPointer-1){
+                  strcpy(lsList[i],lsList[i+1]);
+                }
+              }
+              lsPointer = lsPointer -1;
+            }
+
             endPointer = endPointer -1;
             packetsend.type = 'A';
             memset(packetsend.data, '\0', 10);
