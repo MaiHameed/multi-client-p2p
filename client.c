@@ -115,7 +115,7 @@ void registerContent(){
     fprintf(stderr, "\n");
 
     // Sends the data packet to the index server
-    write(s_udp, &sendPacket, BUFLEN);     
+    write(s_udp, &sendPacket, sizeof(sendPacket.type)+sizeof(sendPacket.data));     
     
     // Wait for message from the server and check the first byte of packet to determine the PDU type (A or E)
     readLength = read(s_udp, readPacket, BUFLEN);
@@ -155,19 +155,41 @@ void registerContent(){
         default:
             printf("Unable to read incoming message from server\n\n");
     }
-    
 }
 
-void deregisterContent(char contentName[], int sizeOfContentName){
+void deregisterContent(char contentName[]){
     struct pduT packetT;
     struct pdu sendPacket;
 
     //  Build the T type PDU
     packetT.type = 'T';
     memcpy(packetT.peerName, peerName, sizeof(peerName));
-    memcpy(packetT.contentName, contentName, sizeOfContentName);
+    memcpy(packetT.contentName, contentName, sizeof(packetT.contentName));
 
-    // Parse the T type into a general PDU
+    // Parse the T type into a general PDU for transmission
+    // sendPacket.data = [peerName]+[contentName]+[host]+[port]
+    memset(&sendPacket, '\0', sizeof(sendPacket));          // Sets terminating characters to all elements
+    int dataOffset = 0;
+
+    sendPacket.type = packetT.type;
+    memcpy(sendPacket.data + dataOffset, 
+            packetT.peerName, 
+            sizeof(packetT.peerName));
+    dataOffset += sizeof(packetT.peerName);
+    memcpy(sendPacket.data + dataOffset, 
+            packetT.contentName,
+            sizeof(packetT.contentName));
+    fprintf(stderr, "Parsed the T type PDU into the following general PDU:\n");
+    fprintf(stderr, "    Type: %c\n", sendPacket.type);
+    fprintf(stderr, "    Data: %s\n", sendPacket.data);
+    int m;
+    for(m = 0; m <= sizeof(sendPacket.data)-1; m++){
+        fprintf(stderr, "%d: %c\n", m, sendPacket.data[m]);
+    }
+    fprintf(stderr, "\n");
+
+    // Sends the data packet to the index server
+    write(s_udp, &sendPacket, sizeof(sendPacket.type)+sizeof(sendPacket.data));
 }
 
 void listLocalContent(){
@@ -257,6 +279,7 @@ int main(int argc, char **argv){
 
     // Main control loop
     char userChoice[2];
+    char userInput[10];
     int quit = 0;
     fd_set rfds, afds;     
     while(!quit){
@@ -299,7 +322,6 @@ int main(int argc, char **argv){
         */
 
         read(0, userChoice, 1);
-        fprintf(stderr, "Read user input\n");
 
         // Perform task
         switch(userChoice[0]){
@@ -307,6 +329,8 @@ int main(int argc, char **argv){
                 registerContent();
                 break;
             case 'T':   // De-register content
+                read(0, userInput, 10);
+                deregisterContent(userInput);
                 break;
             case 'D':   // Download content
                 break;
