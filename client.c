@@ -27,10 +27,6 @@ int		port = 3000;                        // Default port
 int		s_udp, s_tcp, new_tcp, n, type;	    // socket descriptor and socket type	
 struct 	hostent	*phe;	                    // pointer to host information entry	
 
-// TCP connection variables        
-struct 	sockaddr_in content_server_sin;
-int     tcp_host, tcp_port;                 // The generated TCP host and port into easier to call variables
-
 void addToLocalContent(char contentName[], char port[]){
     strcpy(localContentName[numOfLocalContent], contentName);
     strcpy(localContentPort[numOfLocalContent], port);
@@ -96,11 +92,39 @@ void registerContent(){
     struct pduR packetR;                    // The PDU packet to send to the index server
     struct pdu sendPacket;
 
-    int validContentName = 0;               // Flag to check validity of user provided content name
-    char input[101];                        // Temp placeholder for user input
-    char writeMsg[101];                     // Temp placeholder for outgoing message to index server
-    int readLength;                         // Length of incoming data bytes from index server
-    char readPacket[101];                   // Temp placeholder for incoming message from index server
+    int     validContentName = 0;           // Flag to check validity of user provided content name
+    char    input[101];                     // Temp placeholder for user input
+    char    writeMsg[101];                  // Temp placeholder for outgoing message to index server
+    int     readLength;                     // Length of incoming data bytes from index server
+    char    readPacket[101];                // Temp placeholder for incoming message from index server
+    
+    // TCP connection variables        
+    struct 	sockaddr_in content_server_sin;
+    int     tcp_host, tcp_port;             // The generated TCP host and port into easier to call variables
+
+    // Create a TCP stream socket	
+	if ((s_tcp = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		fprintf(stderr, "Can't create a TCP socket\n");
+		exit(1);
+	}
+    bzero((char *)&content_server_sin, sizeof(struct sockaddr_in));
+	content_server_sin.sin_family = AF_INET;
+	content_server_sin.sin_port = htons(0);
+	content_server_sin.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	bind(s_tcp, (struct sockaddr *)&content_server_sin, sizeof(content_server_sin));
+	
+	socklen_t sin_len = sizeof(content_server_sin);
+	if (getsockname(s_tcp, (struct sockaddr *)&content_server_sin, &sin_len) == -1) {
+		fprintf(stderr, "Can't get TCP socket name %d\n", s_tcp);
+		exit(1);
+	}
+    tcp_host = content_server_sin.sin_addr.s_addr;
+    tcp_port = content_server_sin.sin_port;
+    fprintf(stderr, "Successfully generated a TCP socket\n");
+	fprintf(stderr, "TCP socket address %d\n", tcp_host);
+	fprintf(stderr, "TCP socket port %d\n", tcp_port);
+
 
     /*
         The below while loop encloses the generation and sending of an R type data packet
@@ -298,31 +322,6 @@ int main(int argc, char **argv){
 	if (connect(s_udp, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
 		fprintf(stderr, "Can't connect to %s\n", host);
 	}
-
-
-    // Generate a TCP connection
-    // Create a TCP stream socket	
-	if ((s_tcp = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		fprintf(stderr, "Can't create a TCP socket\n");
-		exit(1);
-	}
-    bzero((char *)&content_server_sin, sizeof(struct sockaddr_in));
-	content_server_sin.sin_family = AF_INET;
-	content_server_sin.sin_port = htons(0);
-	content_server_sin.sin_addr.s_addr = htonl(INADDR_ANY);
-
-	bind(s_tcp, (struct sockaddr *)&content_server_sin, sizeof(content_server_sin));
-	
-	socklen_t sin_len = sizeof(content_server_sin);
-	if (getsockname(s_tcp, (struct sockaddr *)&content_server_sin, &sin_len) == -1) {
-		fprintf(stderr, "Can't get TCP socket name %d\n", s_tcp);
-		exit(1);
-	}
-    tcp_host = content_server_sin.sin_addr.s_addr;
-    tcp_port = content_server_sin.sin_port;
-    fprintf(stderr, "Successfully generated a TCP socket\n");
-	fprintf(stderr, "TCP socket address %d\n", tcp_host);
-	fprintf(stderr, "TCP socket port %d\n", tcp_port);
     
     printf("=============================\n");
     printf("Welcome to the P2P Network!\n");
