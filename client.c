@@ -184,7 +184,11 @@ int main(int argc, char **argv){
 			exit(1);
 	}
 
-    struct 	sockaddr_in sin;                    // UDP connection
+    struct 	sockaddr_in sin;            
+
+    memset(&sin, 0, sizeof(sin));
+	sin.sin_family = AF_INET;                                                                
+	sin.sin_port = htons(port);
 
     // Generate a UDP connection to the index server
     // Map host name to IP address, allowing for dotted decimal 
