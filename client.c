@@ -335,7 +335,7 @@ int main(int argc, char **argv){
         }
         */
 
-        read(0, userChoice, 1);
+        read(0, userChoice, 2);
 
         // Perform task
         switch(userChoice[0]){
@@ -354,6 +354,10 @@ int main(int argc, char **argv){
                 listLocalContent();
                 break;
             case 'Q':   // De-register all local content from the server and quit
+                int j;
+                for(j = 0; j < numOfLocalContent; j++){
+                    deregisterContent(localContent[j]);
+                }
                 quit = 1;
                 break;
             default:
@@ -362,4 +366,5 @@ int main(int argc, char **argv){
     }
     close(s_udp);
     close(s_tcp);
+    exit(0);
 }
