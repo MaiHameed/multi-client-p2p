@@ -187,9 +187,9 @@ int main(int argc, char *argv[])
             // Send Err Packet
             packetsend.type = 'E';
             memset(packetsend.data, '\0', 100);
-            if (errorFlag=1)
+            if (errorFlag=2)
 					    strcpy(packetsend.data,"PeerName has already been registered");
-            else if (errorFlag=2) {
+            else if (errorFlag=1) {
               strcpy(packetsend.data,"File Already Registered Error");
             }
             fprintf(stderr,"Error\n");
