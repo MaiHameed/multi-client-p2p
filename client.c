@@ -16,6 +16,9 @@
 
 // Globals
 char peerName[10];                          // Holds the user name, same name per instance of client
+char localContent[5][10];                   // Creates an array of strings that represent local content that has been registered via the
+                                            // index server. Can store 5 elements of 10 bytes per content (9 + null terminating char)
+int numOfLocalContent = 0;                  // Stores number of saved local content
 
 // UDP connection variables
 char	*host = "localhost";                // Default host
@@ -26,6 +29,11 @@ struct 	hostent	*phe;	                    // pointer to host information entry
 // TCP connection variables        
 struct 	sockaddr_in content_server_sin;
 int     tcp_host, tcp_port;                 // The generated TCP host and port into easier to call variables
+
+void addToLocalContent(char contentName[]){
+    strcpy(localContent[numOfLocalContent], contentName);
+    numOfLocalContent++;
+}
 
 void printTasks(){
     printf("Choose a task:\n");
@@ -115,7 +123,7 @@ void registerContent(){
     fprintf(stderr, "\n");
 
     // Sends the data packet to the index server
-    write(s_udp, &sendPacket, BUFLEN);     
+    write(s_udp, &sendPacket, sizeof(sendPacket.type)+sizeof(sendPacket.data));     
     
     // Wait for message from the server and check the first byte of packet to determine the PDU type (A or E)
     readLength = read(s_udp, readPacket, BUFLEN);
@@ -151,27 +159,55 @@ void registerContent(){
             printf("    Host: %s\n", packetR.host);
             printf("    Port: %s\n", packetR.port);
             printf("\n");
+            addToLocalContent(packetR.contentName);
             break;
         default:
             printf("Unable to read incoming message from server\n\n");
     }
-    
 }
 
-void deregisterContent(char contentName[], int sizeOfContentName){
+void deregisterContent(char contentName[]){
     struct pduT packetT;
     struct pdu sendPacket;
 
     //  Build the T type PDU
     packetT.type = 'T';
     memcpy(packetT.peerName, peerName, sizeof(peerName));
-    memcpy(packetT.contentName, contentName, sizeOfContentName);
+    memcpy(packetT.contentName, contentName, sizeof(packetT.contentName));
 
-    // Parse the T type into a general PDU
+    // Parse the T type into a general PDU for transmission
+    // sendPacket.data = [peerName]+[contentName]+[host]+[port]
+    memset(&sendPacket, '\0', sizeof(sendPacket));          // Sets terminating characters to all elements
+    int dataOffset = 0;
+
+    sendPacket.type = packetT.type;
+    memcpy(sendPacket.data + dataOffset, 
+            packetT.peerName, 
+            sizeof(packetT.peerName));
+    dataOffset += sizeof(packetT.peerName);
+    memcpy(sendPacket.data + dataOffset, 
+            packetT.contentName,
+            sizeof(packetT.contentName));
+    fprintf(stderr, "Parsed the T type PDU into the following general PDU:\n");
+    fprintf(stderr, "    Type: %c\n", sendPacket.type);
+    fprintf(stderr, "    Data: %s\n", sendPacket.data);
+    int m;
+    for(m = 0; m <= sizeof(sendPacket.data)-1; m++){
+        fprintf(stderr, "%d: %c\n", m, sendPacket.data[m]);
+    }
+    fprintf(stderr, "\n");
+
+    // Sends the data packet to the index server
+    write(s_udp, &sendPacket, sizeof(sendPacket.type)+sizeof(sendPacket.data));
 }
 
 void listLocalContent(){
     printf("List of names of the locally registered content:\n");
+    
+    int j;
+    for(j = 0; j < numOfLocalContent; j++){
+        printf("%d: %s\n", j, localContent[j]);
+    }
 }
 
 int main(int argc, char **argv){
@@ -257,6 +293,7 @@ int main(int argc, char **argv){
 
     // Main control loop
     char userChoice[2];
+    char userInput[10];
     int quit = 0;
     fd_set rfds, afds;     
     while(!quit){
@@ -299,7 +336,6 @@ int main(int argc, char **argv){
         */
 
         read(0, userChoice, 1);
-        fprintf(stderr, "Read user input\n");
 
         // Perform task
         switch(userChoice[0]){
@@ -307,6 +343,8 @@ int main(int argc, char **argv){
                 registerContent();
                 break;
             case 'T':   // De-register content
+                read(0, userInput, 10);
+                deregisterContent(userInput);
                 break;
             case 'D':   // Download content
                 break;
