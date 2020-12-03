@@ -16,8 +16,9 @@
 
 // Globals
 char peerName[10];                          // Holds the user name, same name per instance of client
-char localContent[5][10];                   // Creates an array of strings that represent local content that has been registered via the
-                                            // index server. Can store 5 elements of 10 bytes per content (9 + null terminating char)
+char localContentName[5][10];               // Creates an array of strings that represent the name of the local content that has been registered
+                                            // via the index server. Can store 5 elements of 10 bytes per content (9 + null terminating char)
+char localContentPort[5][6];                // Stores the port number associated with each piece of locally registered content
 int numOfLocalContent = 0;                  // Stores number of saved local content
 
 // UDP connection variables
@@ -30,9 +31,50 @@ struct 	hostent	*phe;	                    // pointer to host information entry
 struct 	sockaddr_in content_server_sin;
 int     tcp_host, tcp_port;                 // The generated TCP host and port into easier to call variables
 
-void addToLocalContent(char contentName[]){
-    strcpy(localContent[numOfLocalContent], contentName);
+void addToLocalContent(char contentName[], char port[]){
+    strcpy(localContentName[numOfLocalContent], contentName);
+    strcpy(localContentPort[numOfLocalContent], port);
+    
+    // stderr Logging purposes only
+    fprintf(stderr, "Added the following content to the local list of contents:\n");
+    fprintf(stderr, "   Content Name: %s\n", localContentName[numOfLocalContent]);
+    fprintf(stderr, "   Port: %s\n", localContentPort[numOfLocalContent]);
+
     numOfLocalContent++;
+}
+
+void removeFromLocalContent(char contentName[]){
+    // TODO: Find in array list and remove from both lists, decrement numOfLocalContent
+    int j;
+    int foundElement = 0;
+
+    // This for loop parses the local list of content names for the requested content name
+    for(j = 0; j < numOfLocalContent; j++){
+        if(strcmp(localContentName[j], contentName)){
+            // the requested name was found in the list, proceed to delete element in both name and port lists
+            printf("The following content was deleted:\n");
+            printf("    Content Name: %s\n", localContentName[j]);
+            printf("    Port: %s\n", localContentPort[j]);
+
+            // Delete element
+            strcpy(localContentName[j], '\0');
+            strcpy(localContentPort[j], '\0');
+
+            // This loop moves all elements underneath the one deleted up one to fill the gap
+            while(j < numOfLocalContent - 1){
+                strcpy(localContentName[j], localContentName[j+1]);
+                strcpy(localContentPort[j], localContentPort[j+1]);
+            }
+            foundElement = 1;
+            break;
+        }
+    }
+
+    // Sends an error message to the user if the requested content was not found
+    if(!foundElement){
+        printf("Error, the requested content name was not found in the list:\n");
+        printf("    Content Name: %s\n", contentName);
+    }
 }
 
 void printTasks(){
@@ -159,7 +201,7 @@ void registerContent(){
             printf("    Host: %s\n", packetR.host);
             printf("    Port: %s\n", packetR.port);
             printf("\n");
-            addToLocalContent(packetR.contentName);
+            addToLocalContent(packetR.contentName, packetR.port);
             break;
         default:
             printf("Unable to read incoming message from server\n\n");
@@ -188,6 +230,8 @@ void deregisterContent(char contentName[]){
     memcpy(sendPacket.data + dataOffset, 
             packetT.contentName,
             sizeof(packetT.contentName));
+    
+    // stderr output, log purposes only
     fprintf(stderr, "Parsed the T type PDU into the following general PDU:\n");
     fprintf(stderr, "    Type: %c\n", sendPacket.type);
     fprintf(stderr, "    Data: %s\n", sendPacket.data);
@@ -199,14 +243,17 @@ void deregisterContent(char contentName[]){
 
     // Sends the data packet to the index server
     write(s_udp, &sendPacket, sizeof(sendPacket.type)+sizeof(sendPacket.data));
+    // Removes the content from the list of locally registered content
+    removeFromLocalContent(packetT.contentName);
 }
 
 void listLocalContent(){
-    printf("List of names of the locally registered content:\n");
-    
     int j;
+
+    printf("List of names of the locally registered content:\n");
+    printf("Num\t\tName\t\tPort\n");
     for(j = 0; j < numOfLocalContent; j++){
-        printf("%d: %s\n", j, localContent[j]);
+        printf("%d\t\t%s\t\t%s\n", j, localContentName[j], localContentPort[j]);
     }
 }
 
@@ -295,25 +342,18 @@ int main(int argc, char **argv){
     char userChoice[2];
     char userInput[10];
     int quit = 0;
-    fd_set rfds, afds;     
+    int j;
+    fd_set rfds, afds;   
+
     while(!quit){
         // Prompt user to select task
         printTasks();
 
-        // Checks which stream to listen to: stdin (user), TCP (peer)
-        // TODO: Not sure about this chunk
+        // Check if there is an incoming TCP connection
         /*
-        memcpy(&rfds, &afds, sizeof(rfds));
-        FD_ZERO(&afds);
-        FD_SET(s_tcp, &afds);
+        listen(s_tcp, 5); // queue up to 5 connect requests  
 
-        int maxfd = (s_tcp > 0) ? s_tcp : 0;
-        if (select(maxfd + 1, &rfds, NULL, NULL, NULL) == -1) {
-			fprintf(stderr, "Error during select system call\n");
-		}
-
-        // Check if any TCP sockets has pending data
-        if(FD_ISSET(s_tcp, &rfds)){
+        if(true){
             fprintf(stderr, "Detected a TCP socket connection incoming\n");
             // TODO Implement management of TCP connections. These will be peers requesting data
             int client_len = sizeof(client);
@@ -354,9 +394,8 @@ int main(int argc, char **argv){
                 listLocalContent();
                 break;
             case 'Q':   // De-register all local content from the server and quit
-                int j;
                 for(j = 0; j < numOfLocalContent; j++){
-                    deregisterContent(localContent[j]);
+                    deregisterContent(localContentName[j]);
                 }
                 quit = 1;
                 break;
