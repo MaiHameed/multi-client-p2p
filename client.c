@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-// Header file that specified PDU struct
+// User defined files
 #include "ds.h"
 
 #define	BUFLEN      100     // Max 100 bytes per packet
@@ -17,12 +17,13 @@
 // Globals
 char peerName[11];                          // Holds the user name, same name per instance of client
 
-// Necessary for UDP connection
+// UDP connection variables
 char	*host = "localhost";                // Default host
 int		port = 3000;                        // Default port                
 int		s_udp, s_tcp, new_tcp, n, type;	    // socket descriptor and socket type	
 struct 	hostent	*phe;	                    // pointer to host information entry	
 
+// TCP connection variables
 struct	sockaddr_in server, client;         // To generate a TCP connection
 struct 	sockaddr_in content_server_sin;
 int     tcp_host, tcp_port;                 // The generated TCP host and port into easier to call variables
@@ -161,6 +162,10 @@ void registerContent(){
     }
 }
 
+void listLocalContent(){
+    printf("List of names of the locally registered content:\n");
+}
+
 int main(int argc, char **argv){
     
     // Checks input arguments and assigns host:port connection to server
@@ -179,7 +184,11 @@ int main(int argc, char **argv){
 			exit(1);
 	}
 
-    struct 	sockaddr_in sin;                    // UDP connection
+    struct 	sockaddr_in sin;            
+
+    memset(&sin, 0, sizeof(sin));
+	sin.sin_family = AF_INET;                                                                
+	sin.sin_port = htons(port);
 
     // Generate a UDP connection to the index server
     // Map host name to IP address, allowing for dotted decimal 
@@ -282,17 +291,19 @@ int main(int argc, char **argv){
 
         // Perform task
         switch(userChoice[0]){
-            case 'R':
+            case 'R':   // Register content to the index server
                 registerContent();
                 break;
-            case 'D':
+            case 'T':   // De-register content
                 break;
-            case 'T':
+            case 'D':   // Download content
                 break;
-            case 'O':
+            case 'O':   // List all the content available on the index server
                 break;
-            case 'Q':
-                // TODO: Implement de-registration of all content and quit
+            case 'L':   // List all local content registered
+                listLocalContent();
+                break;
+            case 'Q':   // De-register all local content from the server and quit
                 quit = 1;
                 break;
             default:
