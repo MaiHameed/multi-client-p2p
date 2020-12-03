@@ -300,20 +300,11 @@ int main(int argc, char **argv){
         // Prompt user to select task
         printTasks();
 
-        // Checks which stream to listen to: stdin (user), TCP (peer)
-        // TODO: Not sure about this chunk
+        // Check if there is an incoming TCP connection
         /*
-        memcpy(&rfds, &afds, sizeof(rfds));
-        FD_ZERO(&afds);
-        FD_SET(s_tcp, &afds);
+        listen(s_tcp, 5); // queue up to 5 connect requests  
 
-        int maxfd = (s_tcp > 0) ? s_tcp : 0;
-        if (select(maxfd + 1, &rfds, NULL, NULL, NULL) == -1) {
-			fprintf(stderr, "Error during select system call\n");
-		}
-
-        // Check if any TCP sockets has pending data
-        if(FD_ISSET(s_tcp, &rfds)){
+        if(true){
             fprintf(stderr, "Detected a TCP socket connection incoming\n");
             // TODO Implement management of TCP connections. These will be peers requesting data
             int client_len = sizeof(client);
