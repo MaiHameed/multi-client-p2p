@@ -3,14 +3,10 @@ CFLAGS=-lnsl
 BINDIR = bin
 
 server : server.c 
-	mkdir -p bin
-	$(CC) -o bin/server server.c $(CFLAGS)
+	$(CC) -o server server.c set.c $(CFLAGS)
 
 client: client.c
-	mkdir -p bin
-	$(CC) -o bin/client client.c $(CFLAGS)
+	$(CC) -o client client.c set.c $(CFLAGS)
 
-.PHONY: clean
-
-clean:
-	rm -f $(BINDIR)/*
+client2: client2.c
+	$(CC) -o client2 client2.c set.c $(CFLAGS)

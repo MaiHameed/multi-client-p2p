@@ -7,14 +7,12 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <netdb.h>
 #include <stdio.h>
-#include <strings.h>
 #include <time.h>
-#include "klib/khash.h"
-#include "uthash/src/uthash.h"
 #include "uthash/src/utarray.h"
-#include "set.h"
+#include "./set.h"
 
 /*
 Storage
@@ -39,28 +37,32 @@ Peername -> [Content] DONT NEED
 
 #define BUFLEN		101			/* buffer length */
 
-struct pdu {
-	char type;
-	char data[100];
+struct tpacket {
+  char type;
+  char data[100];
 };
 
 // Index System Data Structures
 typedef struct  {
-  char contentName[10];   // (Key) Content Name
+  char contentName[10]; 
   char peerName[10];
-  char address[80];
+  int host;
+  int port;
 } contentListing;
 
 int main(int argc, char *argv[]) 
 {
   // Packets
-  struct  pduR packetR;
+  struct  pduR packetR, *pktR;
   struct  pduS packetS;
   struct  pduO packetO;
   struct  pduT packetT;
   struct  pduE packetE;
   struct  pduA packetA;
-  char    packetrecieve[101];
+
+  // Transmission Variables
+  struct  tpacket packetrecieve;
+  int     r_host, r_port;
 
   // Socket Primitives
   struct  sockaddr_in fsin;	        /* the from address of a client	*/
@@ -79,6 +81,7 @@ int main(int argc, char *argv[])
   UT_array *contentList;
   utarray_new(contentList,&contentListing_icd);
   SimpleSet contentSet;
+  set_init(&contentSet);
 
 	switch(argc){
 		case 1:
@@ -108,105 +111,95 @@ int main(int argc, char *argv[])
 	  alen = sizeof(fsin); 
     
     while(1) {
-      if (recvfrom(s, &packetrecieve, BUFLEN+1, 0,(struct sockaddr *)&fsin, &alen) < 0)
+      if (recvfrom(s, &packetrecieve, BUFLEN, 0,(struct sockaddr *)&fsin, &alen) < 0)
 			  fprintf(stderr, "[ERROR] recvfrom error\n");
       fprintf(stderr, "Msg Recieved\n");
-      switch(packetrecieve[0]){
-
+      switch(packetrecieve.type){
         /* Peer Server Content Registration */
         case 'R':
-
-          packetR.type = packetrecieve[0];
-          for(i=0;i<80;i++){
-            if (i<10){ 
-              packetR.peerName[i] = packetrecieve[i+1];
-              packetR.contentName[i] = packetrecieve[i+11];
-            }
-            packetR.address[i] = packetrecieve[i+21];
+          memset(&packetR,'\0', sizeof(packetR));
+          for(i=0;i<10;i++){
+              packetR.peerName[i] = packetrecieve.data[i]; // 0:9
+              packetR.contentName[i] = packetrecieve.data[i+10]; // 10:19
+              if (i<6) {
+                packetR.host[i] = packetrecieve.data[i+20]; // 20:25
+              }
+              if (i<5) {
+                packetR.port[i] = packetrecieve.data[i+26]; // 26:31
+              }
           }
+          r_host = atoi(packetR.host);
+          r_port = atoi(packetR.port);
+
           contentListing packet, *pkt, *pktr;
         
           // Content and user validation
           for(pktr=(contentListing*)utarray_front(contentList);
               pktr!=NULL;
               pktr=(contentListing*)utarray_next(contentList,pktr)) {
-                // Content duplicate check
+                // Has the same peername has uploaded the same thing before?
                 if (pktr->peerName == packetR.peerName && pktr->contentName == packetR.contentName) {
-                  // Send Error Packet
-                  packetE.type = 'E';
-					        strcpy(packetE.errMsg,"File Already Registered Error");
-					        sendto(s, &packetE, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
                   errorFlag=1;
                   break;
                 }
-                // Improper Peer Name Check
-                if (pktr->peerName == packetR.peerName && !(pktr->address == packetR.address)){
-                  errorFlag=2;
-                  break;
-                }
+                // Is this peername being used by someone else?
+                // if ((strcmp(pktr->peerName,packetR.peerName) == 0) && (pktr->host != packetR.host)) {
+                //   errorFlag=2;
+                //   break;
+                // }
           }
+
+          /*  Send Reply  */
+          memset(&packet,'\0', sizeof(packet));
+
           if (errorFlag==0){
             // Commit Content
             set_add(&contentSet,packet.contentName);
-            strcpy(packet.address,packetR.address);
+            
             strcpy(packet.contentName,packetR.contentName);
             strcpy(packet.peerName,packetR.peerName);
+            packet.host = r_host;
+            packet.port = r_port;
             utarray_push_back(contentList, &pkt);
+
+            fprintf(stderr, "Peer Name: %s\n", packet.peerName);
+            fprintf(stderr, "Content Name: %s\n", packet.contentName);
+            fprintf(stderr, "Port %d, Host %d\n", packet.port, packet.host);
             
             // Send Ack Packet
             packetA.type = 'A';
+            memset(packetA.peerName, '\0', 10);
             strcpy(packetA.peerName, packet.peerName);
-            sendto(s, &packetA, BUFLEN, 0,(struct sockadNr *)&fsin, sizeof(fsin));
+            sendto(s, &packetA, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           }
           else if (errorFlag=2) {
             // Send Err Packet
             packetE.type = 'E';
+            memset(packetE.errMsg, '\0', 100);
 					  strcpy(packetE.errMsg,"PeerName has already been registered");
 					  sendto(s, &packetE, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           }
           else {
             // Send Err Packet
             packetE.type = 'E';
+            memset(packetE.errMsg, '\0', 100);
 					  strcpy(packetE.errMsg,"File Already Registered Error");
 					  sendto(s, &packetE, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           }
-          // fprintf(stderr, "Type: %c****\n", packetR.type);
-          // fprintf(stderr, "Peer Name: %s\n", packetR.peerName);
-          // fprintf(stderr, "Content Name: %s\n", packetR.contentName);
-          // fprintf(stderr, "Address: %s\n", packetR.address);
+          
           break;
         
         /* Peer Server Content Location Request */
         case 'S':
-          packetS.type = packetrecieve[0];
-          for(i=0;i<90;i++){
-            if (i<10){ 
-              packetS.peerName[i] = packetrecieve[i+1];
-            }
-            packetS.contentNameOrAddress[i] = packetrecieve[i+11];
-          }
-          fprintf(stderr, "**** Type: %c ****\n", packetS.type);
-          fprintf(stderr, "Peer Name: %s\n", packetS.peerName);
-          fprintf(stderr, "contentNAmeOrAddress: %s\n", packetS.contentNameOrAddress);
           break;
         
         /* Peer Server Content List Request */
         case 'O':
-          packetO.type = packetrecieve[0];
           // We don't care about the data in this one
-          fprintf(stderr, "**** Type: %c ****\n", packetO.type);
           break;
         
         /* Peer Server Content De-registration */
         case 'T':
-          packetR.type = packetrecieve[0];
-          for(i=0;i<10;i++){
-              packetR.peerName[i] = packetrecieve[i+1];
-              packetR.contentName[i] = packetrecieve[i+11];
-          }
-          fprintf(stderr, "**** Type: %c ****\n", packetR.type);
-          fprintf(stderr, "Peer Name: %s\n", packetR.peerName);
-          fprintf(stderr, "Content Name: %s\n", packetR.contentName);
           break;
         default:
           break;
