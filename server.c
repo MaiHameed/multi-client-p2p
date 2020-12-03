@@ -11,8 +11,6 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <time.h>
-#include "uthash/src/utarray.h"
-#include "./set.h"
 
 /*
 Storage
@@ -60,6 +58,13 @@ int main(int argc, char *argv[])
   struct  pduE packetE;
   struct  pduA packetA;
 
+  // Index System
+  contentListing contentList[10];
+  contentListing tempContentBlock;
+  char lsList[10][10];
+  int endPointer = 0;
+  int match = 0;
+
   // Transmission Variables
   struct  tpacket packetrecieve;
   int     r_host, r_port;
@@ -76,12 +81,6 @@ int main(int argc, char *argv[])
 	int 	  counter, n,m,i,bytes_to_read,bufsize;
   int     errorFlag = 0;
 
-  // Index System
-  UT_icd contentListing_icd = {sizeof(contentListing), NULL, NULL, NULL};
-  UT_array *contentList;
-  utarray_new(contentList,&contentListing_icd);
-  SimpleSet contentSet;
-  set_init(&contentSet);
 
 	switch(argc){
 		case 1:
@@ -119,58 +118,52 @@ int main(int argc, char *argv[])
         case 'R':
           memset(&packetR,'\0', sizeof(packetR));
           for(i=0;i<10;i++){
-              packetR.peerName[i] = packetrecieve.data[i]; // 0:9
-              packetR.contentName[i] = packetrecieve.data[i+10]; // 10:19
+              packetR.peerName[i] = packetrecieve.data[i];        // 0:9
+              packetR.contentName[i] = packetrecieve.data[i+10];  // 10:19
               if (i<6) {
-                packetR.host[i] = packetrecieve.data[i+20]; // 20:25
+                packetR.host[i] = packetrecieve.data[i+20];       // 20:25
               }
               if (i<5) {
-                packetR.port[i] = packetrecieve.data[i+26]; // 26:31
+                packetR.port[i] = packetrecieve.data[i+26];       // 26:31
               }
           }
           r_host = atoi(packetR.host);
           r_port = atoi(packetR.port);
 
-          contentListing packet, *pkt, *pktr;
-        
-          // Content and user validation
-          for(pktr=(contentListing*)utarray_front(contentList);
-              pktr!=NULL;
-              pktr=(contentListing*)utarray_next(contentList,pktr)) {
-                // Has the same peername has uploaded the same thing before?
-                if (pktr->peerName == packetR.peerName && pktr->contentName == packetR.contentName) {
-                  errorFlag=1;
-                  break;
-                }
-                // Is this peername being used by someone else?
-                // if ((strcmp(pktr->peerName,packetR.peerName) == 0) && (pktr->host != packetR.host)) {
-                //   errorFlag=2;
-                //   break;
-                // }
-          }
+         for(i=0;i<endPointer;i++){
+           fprintf(stderr, "ARRAY ELEMENT %s %s %d %d\n", contentList[i].contentName, contentList[i].peerName,contentList[i].port, contentList[i].host);
+           // Content has already been uploaded by Peer
+           if (strcmp(contentList[i].contentName, packetR.contentName) == 0 && strcmp(contentList[i].peerName, packetR.peerName) == 0) {
+             errorFlag=1;
+             break;
+           }
+           // PeerName and Address Mismatch
+           else if (strcmp(contentList[i].peerName, packetR.peerName) ==0 && (contentList[i].host != r_host)) {
+             errorFlag=2;
+             break;
+           }
+         }
 
           /*  Send Reply  */
-          memset(&packet,'\0', sizeof(packet));
-
           if (errorFlag==0){
             // Commit Content
-            set_add(&contentSet,packet.contentName);
-            
-            strcpy(packet.contentName,packetR.contentName);
-            strcpy(packet.peerName,packetR.peerName);
-            packet.host = r_host;
-            packet.port = r_port;
-            utarray_push_back(contentList, &pkt);
+            memset(&contentList[endPointer],'\0', sizeof(contentList[endPointer])); // Clean Struct
+            strcpy(contentList[endPointer].contentName,packetR.contentName);
+            strcpy(contentList[endPointer].peerName,packetR.peerName);
+            contentList[endPointer].host = r_host;
+            contentList[endPointer].port = r_port;
 
-            fprintf(stderr, "Peer Name: %s\n", packet.peerName);
-            fprintf(stderr, "Content Name: %s\n", packet.contentName);
-            fprintf(stderr, "Port %d, Host %d\n", packet.port, packet.host);
+            fprintf(stderr, "Peer Name: %s\n", contentList[endPointer].contentName);
+            fprintf(stderr, "Content Name: %s\n", contentList[endPointer].peerName);
+            fprintf(stderr, "Port %d, Host %d\n", contentList[endPointer].port, contentList[endPointer].host);
+            endPointer = endPointer +=1; // Increment pointer to NEXT block
             
             // Send Ack Packet
             packetA.type = 'A';
             memset(packetA.peerName, '\0', 10);
-            strcpy(packetA.peerName, packet.peerName);
+            strcpy(packetA.peerName, packetR.peerName);
             sendto(s, &packetA, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
+            fprintf(stderr, "Acked\n");
           }
           else if (errorFlag=2) {
             // Send Err Packet
@@ -186,11 +179,57 @@ int main(int argc, char *argv[])
 					  strcpy(packetE.errMsg,"File Already Registered Error");
 					  sendto(s, &packetE, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           }
-          
           break;
         
         /* Peer Server Content Location Request */
         case 'S':
+          //Localize Content
+          memset(&packetS,'\0', sizeof(packetS));
+          for(i=0;i<10;i++){
+              packetS.peerName[i] = packetrecieve.data[i];        // 0:9
+              packetS.contentNameOrAddress[i] = packetrecieve.data[i+10];  // 10:19
+          }
+          match = 0;
+          for(i=0;i<endPointer;i++){
+            if (strcmp(packetS.contentNameOrAddress, contentList[i].contentName) == 0){
+              fprintf(stderr, "S MATCH %s %s %d %d\n", contentList[i].contentName, contentList[i].peerName,contentList[i].port, contentList[i].host);
+              memset(&tempContentBlock,'\0', sizeof(tempContentBlock));
+              strcpy(tempContentBlock.contentName, contentList[i].contentName);
+              strcpy(tempContentBlock.peerName, contentList[i].peerName);
+              tempContentBlock.host = contentList[i].host;
+              tempContentBlock.port = contentList[i].port;
+              // Have to send host and port here according to the matched content addr.
+              match=1; 
+            }
+            // If content is found, shift all content down queue
+            if (match && i < endPointer-1){
+              strcpy(contentList[i].contentName,contentList[i+1].contentName);
+              strcpy(contentList[i].peerName, contentList[i+1].peerName);
+              contentList[i].host = contentList[i+1].host;
+              contentList[i].port = contentList[i+1].port;
+            }
+          }
+
+          if (match) {
+            endPointer = endPointer-1;
+            // Commit Content at EOQ
+            memset(&contentList[endPointer],'\0', sizeof(contentList[endPointer])); // Clean Struct
+            strcpy(contentList[endPointer].contentName,tempContentBlock.contentName);
+            strcpy(contentList[endPointer].peerName,tempContentBlock.peerName);
+            contentList[endPointer].host = tempContentBlock.host;
+            contentList[endPointer].port = tempContentBlock.port;
+            endPointer = endPointer+1;
+
+            // Send S Packet with host and port
+            // 
+          }
+          else {
+            // Send Error Message
+            packetE.type = 'E';
+            memset(packetE.errMsg, '\0', 100);
+					  strcpy(packetE.errMsg,"Content Not Found");
+					  sendto(s, &packetE, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
+          }
           break;
         
         /* Peer Server Content List Request */
