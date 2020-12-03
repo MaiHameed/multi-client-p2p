@@ -16,6 +16,9 @@
 
 // Globals
 char peerName[10];                          // Holds the user name, same name per instance of client
+char localContent[5][10];                   // Creates an array of strings that represent local content that has been registered via the
+                                            // index server. Can store 5 elements of 10 bytes per content (9 + null terminating char)
+int numOfLocalContent = 0;                  // Stores number of saved local content
 
 // UDP connection variables
 char	*host = "localhost";                // Default host
@@ -26,6 +29,11 @@ struct 	hostent	*phe;	                    // pointer to host information entry
 // TCP connection variables        
 struct 	sockaddr_in content_server_sin;
 int     tcp_host, tcp_port;                 // The generated TCP host and port into easier to call variables
+
+void addToLocalContent(char contentName[]){
+    strcpy(localContent[numOfLocalContent], contentName);
+    numOfLocalContent++;
+}
 
 void printTasks(){
     printf("Choose a task:\n");
@@ -151,6 +159,7 @@ void registerContent(){
             printf("    Host: %s\n", packetR.host);
             printf("    Port: %s\n", packetR.port);
             printf("\n");
+            addToLocalContent(packetR.contentName);
             break;
         default:
             printf("Unable to read incoming message from server\n\n");
@@ -194,6 +203,11 @@ void deregisterContent(char contentName[]){
 
 void listLocalContent(){
     printf("List of names of the locally registered content:\n");
+    
+    int j;
+    for(j = 0; j < numOfLocalContent; j++){
+        printf("%d: %s\n", j, localContent[j]);
+    }
 }
 
 int main(int argc, char **argv){
