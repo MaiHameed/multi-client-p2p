@@ -23,8 +23,7 @@ int		port = 3000;                        // Default port
 int		s_udp, s_tcp, new_tcp, n, type;	    // socket descriptor and socket type	
 struct 	hostent	*phe;	                    // pointer to host information entry	
 
-// TCP connection variables
-struct	sockaddr_in server, client;         // To generate a TCP connection
+// TCP connection variables        
 struct 	sockaddr_in content_server_sin;
 int     tcp_host, tcp_port;                 // The generated TCP host and port into easier to call variables
 
@@ -197,14 +196,17 @@ int main(int argc, char **argv){
 	}
 	else if ( (sin.sin_addr.s_addr = inet_addr(host)) == INADDR_NONE )
 		fprintf(stderr, "Can't get host entry \n");                                                               
+    
     // Allocate a socket 
 	s_udp = socket(AF_INET, SOCK_DGRAM, 0);
 	if (s_udp < 0)
-		fprintf(stderr, "Can't create socket \n");                                                                
+		fprintf(stderr, "Can't create socket \n");       
+
     // Connect the socket 
 	if (connect(s_udp, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
 		fprintf(stderr, "Can't connect to %s\n", host);
 	}
+
 
     // Generate a TCP connection
     // Create a TCP stream socket	
@@ -212,6 +214,7 @@ int main(int argc, char **argv){
 		fprintf(stderr, "Can't create a TCP socket\n");
 		exit(1);
 	}
+    bzero((char *)&content_server_sin, sizeof(struct sockaddr_in));
 	content_server_sin.sin_family = AF_INET;
 	content_server_sin.sin_port = htons(0);
 	content_server_sin.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -241,7 +244,7 @@ int main(int argc, char **argv){
     }
     // Change last char to a null termination instead of newline, for purely aesthetic formatting purposes only
     peerName[strlen(peerName)-1] = '\0'; 
-    printf("Welcome %s!\n\n", peerName);
+    printf("Welcome %s! ", peerName);
 
     // Main control loop
     char userChoice[2];
