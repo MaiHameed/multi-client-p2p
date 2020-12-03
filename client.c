@@ -15,7 +15,7 @@
 #define	BUFLEN      100     // Max 100 bytes per packet
 
 // Globals
-char peerName[11];                          // Holds the user name, same name per instance of client
+char peerName[10];                          // Holds the user name, same name per instance of client
 
 // UDP connection variables
 char	*host = "localhost";                // Default host
@@ -159,6 +159,18 @@ void registerContent(){
                 printf("Unable to read incoming message from server\n\n");
         }
     }
+}
+
+void deregisterContent(char contentName[], int sizeOfContentName){
+    struct pduT packetT;
+    struct pdu sendPacket;
+
+    //  Build the T type PDU
+    packetT.type = 'T';
+    memcpy(packetT.peerName, peerName, sizeof(peerName));
+    memcpy(packetT.contentName, contentName, sizeOfContentName);
+
+    // Parse the T type into a general PDU
 }
 
 void listLocalContent(){
