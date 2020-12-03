@@ -19,12 +19,13 @@ char peerName[11];                          // Holds the user name, same name pe
 
 // Necessary for UDP connection
 char	*host = "localhost";                // Default host
-int		port = 3000;                        // Default port
+int		port = 3000;                        // Default port                
 int		s_udp, s_tcp, new_tcp, n, type;	    // socket descriptor and socket type	
 struct 	hostent	*phe;	                    // pointer to host information entry	
 
 struct	sockaddr_in server, client;         // To generate a TCP connection
 struct 	sockaddr_in content_server_sin;
+int     tcp_host, tcp_port;                 // The generated TCP host and port into easier to call variables
 
 void printTasks(){
     printf("Choose a task:\n");
@@ -43,13 +44,14 @@ int fileTransfer(int tcp){
 
 void registerContent(){
     struct pduR packetR;                    // The PDU packet to send to the index server
+    struct pdu sendPacket;
 
     int validContentName = 0;               // Flag to check validity of user provided content name
     int acknowledgedFromIndex = 0;          // Flag to verify acknowledgement from index server
     char input[101];                        // Temp placeholder for user input
     char writeMsg[101];                     // Temp placeholder for outgoing message to index server
-    char readMsg[101];                      // Temp placeholder for incoming message from index server
     int readLength;                         // Length of incoming data bytes from index server
+    char readPacket[101];                   // Temp placeholder for incoming message from index server
 
     /*
         The below while loop encloses the generation and sending of an R type data packet
@@ -71,24 +73,44 @@ void registerContent(){
         // Build R type PDU to send to index server
         memcpy(packetR.contentName, input, 10);
         memcpy(packetR.peerName, peerName, 10);
-        packetR.host = content_server_sin.sin_addr.s_addr;
-        packetR.port = content_server_sin.sin_port;
+        sprintf(packetR.host, "%d", tcp_host);
+        sprintf(packetR.port, "%d", tcp_port);
         packetR.type = 'R';
 
-        // Sends the R data packet to the index server
-        write(s_udp, &packetR, BUFLEN);     
+        fprintf(stderr, "Built the following R PDU packet:\n");
+        fprintf(stderr, "    Type: %c\n", packetR.type);
+        fprintf(stderr, "    Peer Name: %s\n", packetR.peerName);
+        fprintf(stderr, "    Content Name: %s\n", packetR.contentName);
+        fprintf(stderr, "    Host: %s\n", packetR.host);
+        fprintf(stderr, "    Port: %s\n", packetR.port);
+        fprintf(stderr, "\n");
+
+        // Parse the pduR type into default pdu type for transmission
+        // sendPacket.data = [peerName]+[contentName]+[host]+[port]
+        sendPacket.type = packetR.type;
+        strcpy(sendPacket.data, packetR.peerName);
+        strcat(sendPacket.data, packetR.contentName);
+        strcat(sendPacket.data, packetR.host);
+        strcat(sendPacket.data, packetR.port);
+        fprintf(stderr, "Parsed the R type PDU into the following general PDU:\n");
+        fprintf(stderr, "    Type: %c\n", sendPacket.type);
+        fprintf(stderr, "    Data: %s\n", sendPacket.data);
+        fprintf(stderr, "\n");
+
+        // Sends the data packet to the index server
+        write(s_udp, &sendPacket, BUFLEN);     
         
         // Wait for message from the server and check the first byte of packet to determine the PDU type (A or E)
-        readLength = read(s_udp, readMsg, BUFLEN);
-        int i = 0;
+        readLength = read(s_udp, readPacket, BUFLEN);
+        int i = 1;
         struct pduE packetE;                    // Potential responses from the index server
         struct pduA packetA;
-        switch(readMsg[0]){       
+        switch(readPacket[0]){       
             case 'E':
                 // Copies incoming packet into a PDU-E struct
-                packetE.type = readMsg[0];
-                while(readMsg[i] != '\0'){ 
-                    packetE.errMsg[i-1] = readMsg[i];
+                packetE.type = readPacket[0];
+                while(readPacket[i] != '\0'){ 
+                    packetE.errMsg[i-1] = readPacket[i];
                     i++;
                 }
 
@@ -99,9 +121,9 @@ void registerContent(){
                 break;
             case 'A':
                 // Copies incoming packet into a PDU-A struct
-                packetA.type = readMsg[0];
-                while(readMsg[i] != '\0'){ 
-                    packetA.peerName[i-1] = readMsg[i];
+                packetA.type = readPacket[0];
+                while(readPacket[i] != '\0'){ 
+                    packetA.peerName[i-1] = readPacket[i];
                     i++;
                 }
 
@@ -109,8 +131,8 @@ void registerContent(){
                 printf("The following content has been successfully registered:\n");
                 printf("    Peer Name: %s\n", packetA.peerName);
                 printf("    Content Name: %s\n", packetR.contentName);
-                printf("    Host: %d\n", packetR.host);
-                printf("    Port: %d\n", packetR.port);
+                printf("    Host: %s\n", packetR.host);
+                printf("    Port: %s\n", packetR.port);
                 printf("\n");
                 acknowledgedFromIndex = 1;
                 break;
@@ -173,9 +195,11 @@ int main(int argc, char **argv){
 		fprintf(stderr, "Can't get TCP socket name %d\n", s_tcp);
 		exit(1);
 	}
+    tcp_host = content_server_sin.sin_addr.s_addr;
+    tcp_port = content_server_sin.sin_port;
     fprintf(stderr, "Successfully generated a TCP socket\n");
-	fprintf(stderr, "TCP socket address %d\n", content_server_sin.sin_addr.s_addr);
-	fprintf(stderr, "TCP socket port %d\n", content_server_sin.sin_port);
+	fprintf(stderr, "TCP socket address %d\n", tcp_host);
+	fprintf(stderr, "TCP socket port %d\n", tcp_port);
     
     printf("=============================\n");
     printf("Welcome to the P2P Network!\n");
@@ -201,6 +225,7 @@ int main(int argc, char **argv){
 
         // Checks which stream to listen to: stdin (user), TCP (peer)
         // TODO: Not sure about this chunk
+        /*
         memcpy(&rfds, &afds, sizeof(rfds));
         FD_ZERO(&afds);
         FD_SET(s_tcp, &afds);
@@ -231,8 +256,11 @@ int main(int argc, char **argv){
                     exit(1);
             }
         }
+        */
 
-        read(0, userChoice, sizeof(userChoice));
+        read(0, userChoice, 1);
+        fprintf(stderr, "Read user input\n");
+
         // Perform task
         switch(userChoice[0]){
             case 'R':
