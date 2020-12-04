@@ -91,7 +91,7 @@ void removeFromLocalContent(char contentName[]){
         printf("Error, the requested content name was not found in the list:\n");
         printf("    Content Name: %s\n\n", contentName);
     }else{
-        numOfLocalContent--;
+        numOfLocalContent = numOfLocalContent -1;
     }
 }
 
@@ -300,9 +300,10 @@ void registerContent(char contentName[]){
     }
 }
 
-void deregisterContent(char contentName[]){
+void deregisterContent(char contentName[], int q){
     struct pduT packetT;
     struct pdu sendPacket;
+    struct pdu readPacket;
 
     //  Build the T type PDU
     memset(&packetT, '\0', sizeof(packetT));          // Sets terminating characters to all elements (initializer)
@@ -329,15 +330,18 @@ void deregisterContent(char contentName[]){
     fprintf(stderr, "    Type: %c\n", sendPacket.type);
     fprintf(stderr, "    Data:\n");
     int m;
-    for(m = 0; m <= sizeof(sendPacket.data)-1; m++){
-        fprintf(stderr, "%d: %c\n", m, sendPacket.data[m]);
-    }
-    fprintf(stderr, "\n");
+    // for(m = 0; m <= sizeof(sendPacket.data)-1; m++){
+    //     fprintf(stderr, "%d: %c\n", m, sendPacket.data[m]);
+    // }
+    // fprintf(stderr, "\n");
 
     // Sends the data packet to the index server
     write(s_udp, &sendPacket, sizeof(sendPacket.type)+sizeof(sendPacket.data));
     // Removes the content from the list of locally registered content
-    removeFromLocalContent(packetT.contentName);
+    if(!q){
+        removeFromLocalContent(packetT.contentName);
+    }
+    read(s_udp, &readPacket, sizeof(readPacket));
 }
 
 void listLocalContent(){
@@ -668,7 +672,7 @@ int main(int argc, char **argv){
             case 'T':   // De-register content
                 printf("Enter the name of the content you would like to de-register:\n");
                 scanf("%9s", userInput);   
-                deregisterContent(userInput);
+                deregisterContent(userInput,0);
                 break;
             case 'D':   // Download content
                 printf("Enter the name of the content you would like to download:\n");
@@ -735,7 +739,7 @@ int main(int argc, char **argv){
                 break;
             case 'Q':   // De-register all local content from the server and quit
                 for(j = 0; j < numOfLocalContent; j++){
-                    deregisterContent(localContentName[j]);
+                    deregisterContent(localContentName[j], 1);
                 }
                 quit = 1;
                 break;

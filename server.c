@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
             
             // Send Ack Packet
             packetsend.type = 'A';
-            memset(packetsend.data, '\0', 10);
+            memset(packetsend.data, '\0', 100);
             strcpy(packetsend.data, packetR.peerName);
             fprintf(stderr, "Acked\n"); 
           }
@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
           for(i=0;i<endPointer;i++){
             if ((strcmp(packetT.peerName, contentList[i].peerName) == 0) && strcmp(packetT.contentName, contentList[i].contentName)==0){
               match=1;
-              fprintf(stderr, "File gettting MOVED %s %s %d %d\n", contentList[i].contentName, contentList[i].peerName,contentList[i].port, contentList[i].host);
+              fprintf(stderr, "File getting removed:  %s %s %d %d\n", contentList[i].contentName, contentList[i].peerName,contentList[i].port, contentList[i].host);
             }
             // If content is found, shift all content down queue
             if (match && i < endPointer-1){
