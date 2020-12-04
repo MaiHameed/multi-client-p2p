@@ -370,17 +370,24 @@ void downloadContent(char contentName[], char address[]){
     // TCP connection variables
     struct 	sockaddr_in server;
     struct	hostent		*hp;
-    char    serverHost[5];              // The address of the peer that we'll download from  
+    char    *serverHost = "localhost";              // The address of the peer that we'll download from  
     char    serverPortStr[6];           // Temp middle man to conver string to int        
     int     serverPort;     
     int     downloadSocket;    
     int     m;                          // Variable used for iterative processes
 
     fprintf(stderr, "Found required content on index server, preparing for download\n");
+    for(m = 0; m < 20; m++){
+        fprintf(stderr, "   %d: %c\n", m, address[m]);
+    }
 
     // Parsing the address into host and port
-    memcpy(serverHost, address, sizeof(serverHost));
-    memcpy(serverPortStr, address+sizeof(serverHost), sizeof(serverPortStr));
+    //memcpy(serverHost, address, sizeof(serverHost));
+    for(m = 5; m<10; m++){
+        serverPortStr[m-5] = address[m];
+        fprintf(stderr, "serverPortStr[%d] = %c\n", m-5, serverPortStr[m-5]);
+    }
+    //memcpy(serverPortStr, address+4, sizeof(serverPortStr));
     serverPort = atoi(serverPortStr);
     fprintf(stderr, "Trying to download content from the following address:\n");
     fprintf(stderr, "   Host: %s\n", serverHost);
@@ -403,7 +410,8 @@ void downloadContent(char contentName[], char address[]){
 
 	// Connecting to the server 
 	if (connect(downloadSocket, (struct sockaddr *)&server, sizeof(server)) == -1){
-        fprintf(stderr, "Can't connect to server\n");
+        fprintf(stderr, "Can't connect to server: %s\n", hp->h_name);
+        return;
 	}
     fprintf(stderr, "Successfully connected to server at address: %s:%d\n", serverHost, serverPort);
 
@@ -576,6 +584,7 @@ int main(int argc, char **argv){
         if(FD_ISSET(0, &readfds)){
             fprintf(stderr, "Detected activity in STDIN\n");
             read(0, userChoice, 2);
+            memset(userInput, 0, sizeof(userInput));
             // Perform task
             switch(userChoice[0]){
                 case 'R':   // Register content to the index server
