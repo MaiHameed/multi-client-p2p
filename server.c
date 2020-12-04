@@ -250,10 +250,11 @@ int main(int argc, char *argv[])
             memset(packetsend.data, '\0', 100);
             memset(tcp_ip_addr, '\0',sizeof(tcp_ip_addr));
             memset(tcp_port, '\0', sizeof(tcp_port));
+            strcpy(packetsend.data,tempContentBlock.peerName);
 					  snprintf (tcp_ip_addr, sizeof(tcp_ip_addr), "%d", tempContentBlock.host);
 		        snprintf (tcp_port, sizeof(tcp_port), "%d",tempContentBlock.port);
-		        memcpy(packetsend.data, tcp_ip_addr, 5);
-		        memcpy(packetsend.data+5, tcp_port, 6);
+		        memcpy(packetsend.data+10, tcp_ip_addr, 5);
+		        memcpy(packetsend.data+15, tcp_port, 6);
           }
           else {
             // Send Error Message
@@ -272,9 +273,9 @@ int main(int argc, char *argv[])
           
           for(i=0;i<lsPointer;i++){
             memcpy(packetsend.data+i*10, lsList[i], 10);
+            fprintf(stderr, "Here's an item: %s\n", packetsend.data+i*10);
           }
-          fprintf(stderr, "Here's the list! %s\n", packetsend.data);
-          fprintf(stderr,"Second part of the list %s\n", packetsend.data+10);
+          packetsend.type = 'O';
           sendto(s, &packetsend, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           break;
         
