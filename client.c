@@ -280,6 +280,41 @@ void listLocalContent(){
     printf("\n");
 }
 
+void listIndexServerContent(){
+    struct pduO sendPacket;
+    char        readPacket[sizeof(struct pduO)];
+    
+    memset(&sendPacket, '\0', sizeof(sendPacket));          // Sets terminating characters to all elements
+    sendPacket.type = 'O';
+
+    // Send request to index server
+    write(s_udp, &sendPacket, sizeof(sendPacket));
+
+    // Read and list contents
+    printf("The Index Server contains the following:\n");
+    int i;
+
+    // Info logging purposes only
+    /*
+    fprintf(stderr, "Received the following packet from the server: ");
+    fprintf(stderr, "%s\n", readPacket);
+    fprintf(stderr, "Long form:\n");
+    for(i = 0; i < sizeof(readPacket); i++){
+        fprintf(stderr, "   %d: %.1s\n", i, readPacket+i);
+    }
+    */
+
+    read(s_udp, readPacket, sizeof(readPacket));
+    for(i = 1; i < sizeof(readPacket); i+=10){
+        if(readPacket[i] == '\0'){
+            break;
+        }else{
+            printf("    %d: %.10s\n", i/10, readPacket+i);
+        }
+    }
+    printf("\n");
+}
+
 void pingIndexFor(char contentName[]){
     struct pduS packetS;
     struct pdu sendPacket;
@@ -560,6 +595,7 @@ int main(int argc, char **argv){
                 }
                 break;
             case 'O':   // List all the content available on the index server
+                listIndexServerContent();
                 break;
             case 'L':   // List all local content registered
                 listLocalContent();
