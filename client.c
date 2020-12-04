@@ -240,17 +240,27 @@ void registerContent(char contentName[]){
             switch(fork()){
                 case 0: // Child
                     // Continuously listens and uploads file to all connecting clients
+                    fprintf(stderr, "Content server listening for incoming connections\n");
                     while(1){
                         int client_len = sizeof(client);
                         char fileName[10];
                         new_tcp = accept(s_tcp, (struct sockaddr *)&client, &client_len);
+                        memset(&incomingPacket, '\0', sizeof(incomingPacket));
+                        memset(&fileName, '\0', sizeof(fileName));
                         bytesRead = read(new_tcp, &incomingPacket, sizeof(incomingPacket));
                         switch(incomingPacket.type){
                             case 'D':
-                                for(m = 10; m < 20; m++){
-                                    fileName[m] = incomingPacket.data[m];
+                                fprintf(stderr, "Content server received a D type packet:\n");
+                                for(m = 0; m < sizeof(incomingPacket.data); m++){
+                                    fprintf(stderr, "   %d: %c\n", m, incomingPacket.data[m]);
                                 }
-
+                                fprintf(stderr, "strlen(incomingPacket.data+10) = %d\n", strlen(incomingPacket.data+10));
+                                memcpy(fileName, incomingPacket.data+10, strlen(incomingPacket.data+10));
+                                //fileName[strlen(incomingPacket.data+10)] =  '\0';
+                                fprintf(stderr, "Recieved the file name from the D data type:\n");
+                                for(m = 0; m < sizeof(fileName); m++){
+                                    fprintf(stderr, "   %d: %c\n", m, fileName[m]);
+                                }
                                 FILE *file;
                                 file = fopen(fileName, "r");
                                 if(!file){
@@ -258,8 +268,14 @@ void registerContent(char contentName[]){
                                 }else{
                                     fprintf(stderr, "Content server found file locally, prepping to send to client\n");
                                     sendContent.type = 'C';
-                                    // TODO wrap this in a while loop to send whole content if size > 1459 bytes
-                                    write(new_tcp, &sendContent, sizeof(sendContent));
+                                    while(fgets(sendContent.content, sizeof(sendContent.content), file) != NULL ){
+                                        fprintf(stderr, "Sending the following C type content data:\n");
+                                        for(m = 0; m < sizeof(sendContent.content); m++){
+                                            fprintf(stderr, "   %d: %c\n", m, sendContent.content[m]);
+                                        }
+                                        write(new_tcp, &sendContent, sizeof(sendContent));
+                                        memset(sendContent.content, '\0', sizeof(sendContent.content));
+                                    }
                                 }
                                 fprintf(stderr, "Closing content server\n");
                                 fclose(file);
@@ -483,7 +499,8 @@ void downloadContent(char contentName[], char address[]){
             sizeof(packetD.content));
 
     // stderr output, log purposes only
-    fprintf(stderr, "Parsed the D type PDU into the following general PDU:\n");
+    fprintf(stderr, "Parsed the D type PDU into the following general PDU to send to the content server:\n");
+    fprintf(stderr, "    Server: %s:%d\n", serverHost, serverPort);
     fprintf(stderr, "    Type: %c\n", sendPacket.type);
     fprintf(stderr, "    Data:\n");
     for(m = 0; m <= sizeof(sendPacket.data)-1; m++){
@@ -492,21 +509,36 @@ void downloadContent(char contentName[], char address[]){
 
     // Send request to content server
     write(downloadSocket, &sendPacket, sizeof(sendPacket.type)+sizeof(sendPacket.data));
-
     
     // File download variables
     FILE    *fp;
-    char    readBuffer[101]; 
+    struct  pdu     readBuffer; 
+    int     receivedContent = 0;
 
     // Download the data
     fp = fopen(contentName, "w+");
-    while ((m = read(downloadSocket, readBuffer, BUFLEN)) > 0){
-        fprintf(fp, "%s", readBuffer);      // Write info from content server to local file
+    while ((m = read(downloadSocket, (struct pdu*)&readBuffer, sizeof(readBuffer))) > 0){
+        fprintf(stderr, "Received the following data from the content server\n");
+        fprintf(stderr, "   Type: %c\n", readBuffer.type);
+        for(m = 0; m < sizeof(readBuffer); m++){
+            fprintf(stderr, "   %d: %c\n", m, readBuffer.data+m);
+        }
+        if(readBuffer.type == 'C'){
+            fprintf(stderr, "Successfully received a C type packet from the content server, commencing download\n");
+            fprintf(fp, "%s", readBuffer);      // Write info from content server to local file
+            receivedContent = 1;
+        }else if(readBuffer.type == 'E'){
+            printf("Error parsing C PDU data:\n");
+        }else{
+            fprintf(stderr, "Received garbage from the content server, discarding\n");
+        }
     }
-    fprintf(stderr, "Successfully downloaded content:\n");
-    fprintf(stderr, "   Content Name: %s\n", contentName);
 
-    registerContent(contentName);
+    if(receivedContent){
+        fprintf(stderr, "Successfully downloaded content:\n");
+        fprintf(stderr, "   Content Name: %s\n", contentName);
+        registerContent(contentName);
+    }
 }
 
 int uploadFile(int sd){
