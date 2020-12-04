@@ -468,9 +468,9 @@ void downloadContent(char contentName[], char address[]){
     }
     //memcpy(serverPortStr, address+4, sizeof(serverPortStr));
     serverPort = atoi(serverPortStr);
-    fprintf(stderr, "Trying to download content from the following address:\n");
-    fprintf(stderr, "   Host: %s\n", serverHost);
-    fprintf(stderr, "   Port: %d\n", serverPort);
+    printf("Trying to download content from the following address:\n");
+    printf("   Host: %s\n", serverHost);
+    printf("   Port: %d\n", serverPort);
     
     // Create a TCP stream socket	
 	if ((downloadSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -555,8 +555,8 @@ void downloadContent(char contentName[], char address[]){
     }
     fclose(fp);
     if(receivedContent){
-        fprintf(stderr, "Successfully downloaded content:\n");
-        fprintf(stderr, "   Content Name: %s\n", contentName);
+        printf("Successfully downloaded content:\n");
+        printf("   Content Name: %s\n", contentName);
         registerContent(contentName);
     }
 }
