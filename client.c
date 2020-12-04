@@ -261,14 +261,10 @@ void registerContent(char contentName[]){
                                 for(m = 0; m < sizeof(incomingPacket.data); m++){
                                     fprintf(stderr, "   %d: %c\n", m, incomingPacket.data[m]);
                                 }
-                                fprintf(stderr, "strlen(incomingPacket.data+10) = %d\n", strlen(incomingPacket.data+10));
                                 memcpy(fileName, incomingPacket.data+10, strlen(incomingPacket.data+10));
                                 //fileName[strlen(incomingPacket.data+10)] =  '\0';
                                 fprintf(stderr, "Recieved the file name from the D data type:\n");
                                 fprintf(stderr, "   %s\n", fileName);
-                                for(m = 0; m < sizeof(fileName); m++){
-                                    fprintf(stderr, "   %d: %c\n", m, &fileName+m);
-                                }
                                 FILE *file;
                                 file = fopen(fileName, "rb");
                                 if(!file){
