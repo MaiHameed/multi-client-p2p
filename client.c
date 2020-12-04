@@ -585,8 +585,8 @@ int main(int argc, char **argv){
                         // Info logging purposes only
                         fprintf(stderr, "Parsed the incoming message into the following S-PDU:\n");
                         fprintf(stderr, "   Type: %c\n", packetS.type);
-                        fprintf(stderr, "   Peer Name: &s\n", packetS.peerName);
-                        fprintf(stderr, "   Address: &s\n", packetS.contentNameOrAddress);
+                        fprintf(stderr, "   Peer Name: %s\n", packetS.peerName);
+                        fprintf(stderr, "   Address: %s\n", packetS.contentNameOrAddress);
 
                         // Handles requesting a download from peer with address [packetS.contentNameOrAddress] 
                         // with content name [userInput]
