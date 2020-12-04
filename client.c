@@ -113,6 +113,13 @@ void registerContent(char contentName[]){
     int     readLength;                     // Length of incoming data bytes from index server
     char    readPacket[101];                // Temp placeholder for incoming message from index server
     
+    //Verify that the file exists locally
+    if(access(contentName, F_OK) != 0){
+        // File does not exist
+        printf("Error: File %s does not exist locally\n", contentName);
+        return;
+    }
+
     // TCP connection variables        
     struct 	sockaddr_in server, client;
     struct  pdu     incomingPacket;
