@@ -116,7 +116,7 @@ void registerContent(char contentName[]){
     // TCP connection variables        
     struct 	sockaddr_in server, client;
     struct  pdu     incomingPacket;
-    struct  pduC    sendContent;
+    char    sendContent[sizeof(struct pduC)];
     char    tcp_host[5];
     char    tcp_port[6];             // The generated TCP host and port into easier to call variables
     int     alen;
@@ -268,11 +268,11 @@ void registerContent(char contentName[]){
                                     fprintf(stderr, "File: %s does not exist locally\n", fileName);
                                 }else{
                                     fprintf(stderr, "Content server found file locally, prepping to send to client\n");
-                                    memset(sendContent.content, '\0', sizeof(sendContent.content));
-                                    sendContent.type = 'C';
-                                    while(fgets(sendContent.content, sizeof(sendContent.content), file) > 0){
-                                        write(new_tcp, &sendContent, sizeof(sendContent));
-                                        fprintf(stderr, "Wrote the following to the client:\n %s\n", sendContent.content);
+                                    memset(sendContent, '\0', sizeof(sendContent));
+                                    sendContent[0] = 'C';
+                                    while(fgets(sendContent+1, sizeof(sendContent)-1, file) > 0){
+                                        write(new_tcp, sendContent, sizeof(sendContent));
+                                        fprintf(stderr, "Wrote the following to the client:\n %s\n", sendContent);
                                         //memset(sendContent.content, '\0', sizeof(sendContent.content));
                                     }
                                     /*
@@ -534,12 +534,10 @@ void downloadContent(char contentName[], char address[]){
     while ((m = read(downloadSocket, (struct pdu*)&readBuffer, sizeof(readBuffer))) > 0){
         fprintf(stderr, "Received the following data from the content server\n");
         fprintf(stderr, "   Type: %c\n", readBuffer.type);
-        for(m = 0; m < sizeof(readBuffer); m++){
-            fprintf(stderr, "   %d: %c\n", m, readBuffer.content+m);
-        }
+        fprintf(stderr, "   Data: %s\n", readBuffer.content);
         if(readBuffer.type == 'C'){
             fprintf(stderr, "Successfully received a C type packet from the content server, commencing download\n");
-            fprintf(fp, "%s", readBuffer);      // Write info from content server to local file
+            fprintf(fp, "%s", readBuffer.content);      // Write info from content server to local file
             receivedContent = 1;
         }else if(readBuffer.type == 'E'){
             printf("Error parsing C PDU data:\n");
@@ -548,7 +546,7 @@ void downloadContent(char contentName[], char address[]){
         }
         memset(&readBuffer, '\0', sizeof(readBuffer)); // Clearing readBuffer 
     }
-
+    fclose(fp);
     if(receivedContent){
         fprintf(stderr, "Successfully downloaded content:\n");
         fprintf(stderr, "   Content Name: %s\n", contentName);
@@ -636,40 +634,6 @@ int main(int argc, char **argv){
     struct pduS     packetS;                // Used to parse incoming S type PDUs   
 
     while(!quit){
-        /*
-        // Clear the socket set
-        FD_ZERO(&readfds);         
-        FD_SET(0, &readfds);        
-        // Add sockets to set
-        for(j = 0; j < numOfLocalContent; j++){
-            FD_SET(fdArray[j], &readfds);
-        }
-
-        activity = select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
-
-        
-        for(j = 0; j < numOfLocalContent; j++){
-            if(FD_ISSET(fdArray[j], &readfds)){
-                fprintf(stderr, "Detected activity on socket: %d\n", fdArray[j]);
-                struct sockaddr_in client;
-                int client_len = sizeof(client);
-                int new_sd;
-                new_sd = accept(fdArray[j], (struct sockaddr *)&client, &client_len);
-               
-               if(new_sd < 0) {
-					fprintf(stderr, "Can't accept client\n");
-				}				
-				if (fork() == 0) {
-					fprintf(stderr, "Accepted client on socket: %d\n", fdArray[j]);
-					close(fdArray[j]);
-					exit(uploadFile(new_sd));
-				}
-				else {
-					close(new_sd);
-				}
-            }
-        }
-        */
         printTasks(); 
         read(0, userChoice, 2);
         memset(userInput, 0, sizeof(userInput));
