@@ -13,17 +13,23 @@ All packets have a 'type' field (1 Byte) and data fields (<=100 Bytes)
 */
 
 // UNILATERAL PACKETS 
+struct pdu {
+  char type;
+  char data[100];
+};
+
 struct pduR {
 	char type;
   char peerName[10];
   char contentName[10];
-  char address[80]; // Schema: `IP:Port` (ie. 192.168.0.1:4000)
+  char host[5]; // Schema: `IP:Port` (ie. 192.168.0.1:4000)
+  char port[6];
 };
 
 struct pduD {
-	char type;
+  char type;
   char peerName[10];
-  char content[90]; 
+  char content[90];
 };
 
 struct pduT { 
