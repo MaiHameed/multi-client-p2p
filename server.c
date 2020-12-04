@@ -250,8 +250,8 @@ int main(int argc, char *argv[])
             memset(packetsend.data, '\0', 100);
             memset(tcp_ip_addr, '\0',sizeof(tcp_ip_addr));
             memset(tcp_port, '\0', sizeof(tcp_port));
-					  snprintf (tcp_port, sizeof(tcp_port), "%d", tempContentBlock.host);
-		        snprintf (tcp_ip_addr, sizeof(tcp_ip_addr), "%d",tempContentBlock.port);
+					  snprintf (tcp_ip_addr, sizeof(tcp_ip_addr), "%d", tempContentBlock.host);
+		        snprintf (tcp_port, sizeof(tcp_port), "%d",tempContentBlock.port);
 		        memcpy(packetsend.data, tcp_ip_addr, 5);
 		        memcpy(packetsend.data+5, tcp_port, 6);
           }
