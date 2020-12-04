@@ -114,8 +114,14 @@ void registerContent(char contentName[]){
     char    readPacket[101];                // Temp placeholder for incoming message from index server
     
     // TCP connection variables        
-    struct 	sockaddr_in server;
-    int     tcp_host, tcp_port;             // The generated TCP host and port into easier to call variables
+    struct 	sockaddr_in server, client;
+    struct  pdu     incomingPacket;
+    struct  pduC    sendContent;
+    char    tcp_host[5];
+    char    tcp_port[6];             // The generated TCP host and port into easier to call variables
+    int     alen;
+    int     bytesRead;
+    int     m;
 
     // Create a TCP stream socket	
 	if ((s_tcp = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -126,27 +132,23 @@ void registerContent(char contentName[]){
 	server.sin_family = AF_INET;
 	server.sin_port = htons(0);
 	server.sin_addr.s_addr = htonl(INADDR_ANY);
-
 	bind(s_tcp, (struct sockaddr *)&server, sizeof(server));
-    listen(s_tcp, 5);
-	
-	socklen_t sin_len = sizeof(server);
-	if (getsockname(s_tcp, (struct sockaddr *)&server, &sin_len) == -1) {
-		fprintf(stderr, "Can't get TCP socket name %d\n", s_tcp);
-		exit(1);
-	}
-    tcp_host = server.sin_addr.s_addr;
-    tcp_port = server.sin_port;
+    alen = sizeof(struct sockaddr_in);
+    getsockname(s_tcp, (struct sockaddr *)&server, &alen);
+
+    snprintf(tcp_host, sizeof(tcp_host), "%d", server.sin_addr.s_addr);
+    snprintf(tcp_port, sizeof(tcp_port), "%d", htons(server.sin_port));
+
     fprintf(stderr, "Successfully generated a TCP socket\n");
-	fprintf(stderr, "TCP socket address %d\n", tcp_host);
-	fprintf(stderr, "TCP socket port %d\n", tcp_port);
+	fprintf(stderr, "TCP socket address %s\n", tcp_host);
+	fprintf(stderr, "TCP socket port %s\n", tcp_port);
 
     // Build R type PDU to send to index server
     memset(&packetR, '\0', sizeof(packetR));          // Sets terminating characters to all elements
     memcpy(packetR.contentName, contentName, 10);
     memcpy(packetR.peerName, peerName, 10);
-    sprintf(packetR.host, "%d", tcp_host);
-    sprintf(packetR.port, "%d", tcp_port);
+    memcpy(packetR.host, tcp_host, sizeof(tcp_host));
+    memcpy(packetR.port, tcp_port, sizeof(tcp_port));
     packetR.type = 'R';
 
     fprintf(stderr, "Built the following R PDU packet:\n");
@@ -182,7 +184,6 @@ void registerContent(char contentName[]){
     fprintf(stderr, "Parsed the R type PDU into the following general PDU:\n");
     fprintf(stderr, "    Type: %c\n", sendPacket.type);
     fprintf(stderr, "    Data:\n");
-    int m;
     for(m = 0; m <= sizeof(sendPacket.data)-1; m++){
         fprintf(stderr, "%d: %c\n", m, sendPacket.data[m]);
     }
@@ -234,6 +235,48 @@ void registerContent(char contentName[]){
             printf("    Host: %s\n", packetR.host);
             printf("    Port: %s\n", packetR.port);
             printf("\n");
+
+            listen(s_tcp, 5);
+            switch(fork()){
+                case 0: // Child
+                    // Continuously listens and uploads file to all connecting clients
+                    while(1){
+                        int client_len = sizeof(client);
+                        char fileName[10];
+                        new_tcp = accept(s_tcp, (struct sockaddr *)&client, &client_len);
+                        bytesRead = read(new_tcp, &incomingPacket, sizeof(incomingPacket));
+                        switch(incomingPacket.type){
+                            case 'D':
+                                for(m = 10; m < 20; m++){
+                                    fileName[m] = incomingPacket.data[m];
+                                }
+
+                                FILE *file;
+                                file = fopen(fileName, "r");
+                                if(!file){
+                                    fprintf(stderr, "File: %s does not exist locally\n", fileName);
+                                }else{
+                                    fprintf(stderr, "Content server found file locally, prepping to send to client\n");
+                                    sendContent.type = 'C';
+                                    // TODO wrap this in a while loop to send whole content if size > 1459 bytes
+                                    write(new_tcp, &sendContent, sizeof(sendContent));
+                                }
+                                fprintf(stderr, "Closing content server\n");
+                                fclose(file);
+                                close(new_tcp);
+                                break;
+                            default:
+                                fprintf(stderr, "Content server recieved an unknown packet\n");
+                                break;
+                        }
+                    }
+                    fprintf(stderr, "Content server escaped the while loop for some reason\n");
+                    break;
+                case -1: // Parent
+                    fprintf(stderr, "Error creating child process");
+                    break;
+            }
+
             addToLocalContent(packetR.contentName, packetR.port, s_tcp, server);
             break;
         default:
@@ -370,7 +413,7 @@ void downloadContent(char contentName[], char address[]){
     // TCP connection variables
     struct 	sockaddr_in server;
     struct	hostent		*hp;
-    char    *serverHost = "localhost";              // The address of the peer that we'll download from  
+    char    *serverHost = "0";  // The address of the peer that we'll download from  
     char    serverPortStr[6];           // Temp middle man to conver string to int        
     int     serverPort;     
     int     downloadSocket;    
@@ -545,10 +588,8 @@ int main(int argc, char **argv){
     struct pduE     packetE;                // Used to parse incoming Error messages
     struct pduS     packetS;                // Used to parse incoming S type PDUs   
 
-    // Prompt user to select task
-    printTasks();
     while(!quit){
-        
+        /*
         // Clear the socket set
         FD_ZERO(&readfds);         
         FD_SET(0, &readfds);        
@@ -559,6 +600,7 @@ int main(int argc, char **argv){
 
         activity = select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
 
+        
         for(j = 0; j < numOfLocalContent; j++){
             if(FD_ISSET(fdArray[j], &readfds)){
                 fprintf(stderr, "Detected activity on socket: %d\n", fdArray[j]);
@@ -580,97 +622,94 @@ int main(int argc, char **argv){
 				}
             }
         }
+        */
+        printTasks(); 
+        read(0, userChoice, 2);
+        memset(userInput, 0, sizeof(userInput));
+        // Perform task
+        switch(userChoice[0]){
+            case 'R':   // Register content to the index server
+                printf("Enter a valid content name, 9 characters or less:\n");
+                scanf("%9s", userInput);      
+                registerContent(userInput);
+                break;
+            case 'T':   // De-register content
+                printf("Enter the name of the content you would like to de-register:\n");
+                scanf("%9s", userInput);   
+                deregisterContent(userInput);
+                break;
+            case 'D':   // Download content
+                printf("Enter the name of the content you would like to download:\n");
+                scanf("%9s", userInput);
 
-        if(FD_ISSET(0, &readfds)){
-            fprintf(stderr, "Detected activity in STDIN\n");
-            read(0, userChoice, 2);
-            memset(userInput, 0, sizeof(userInput));
-            // Perform task
-            switch(userChoice[0]){
-                case 'R':   // Register content to the index server
-                    printf("Enter a valid content name, 9 characters or less:\n");
-                    scanf("%9s", userInput);      
-                    registerContent(userInput);
-                    break;
-                case 'T':   // De-register content
-                    printf("Enter the name of the content you would like to de-register:\n");
-                    scanf("%9s", userInput);   
-                    deregisterContent(userInput);
-                    break;
-                case 'D':   // Download content
-                    printf("Enter the name of the content you would like to download:\n");
-                    scanf("%9s", userInput);
+                // Info logging purposes only
+                fprintf(stderr, "User wants to download the following content name:\n");
+                for(j = 0; j < sizeof(userInput); j++){
+                    fprintf(stderr, "   %d: %c\n", j, userInput[j]);
+                }
 
-                    // Info logging purposes only
-                    fprintf(stderr, "User wants to download the following content name:\n");
-                    for(j = 0; j < sizeof(userInput); j++){
-                        fprintf(stderr, "   %d: %c\n", j, userInput[j]);
-                    }
+                pingIndexFor(userInput);                // Ask the index for a specific piece of content
+                
+                // Read index answer, either an S or E type PDU
+                read(s_udp, readPacket, sizeof(readPacket));
+                
+                // Info logging purposes only
+                fprintf(stderr, "Received a message from the index server:\n");
+                for(j = 0; j <= sizeof(readPacket)-1; j++){
+                    fprintf(stderr, "%d: %c\n", j, readPacket[j]);
+                }
 
-                    pingIndexFor(userInput);                // Ask the index for a specific piece of content
-                    
-                    // Read index answer, either an S or E type PDU
-                    read(s_udp, readPacket, sizeof(readPacket));
-                    
-                    // Info logging purposes only
-                    fprintf(stderr, "Received a message from the index server:\n");
-                    for(j = 0; j <= sizeof(readPacket)-1; j++){
-                        fprintf(stderr, "%d: %c\n", j, readPacket[j]);
-                    }
-
-                    switch(readPacket[0]){
-                        case 'E':
-                            // Copies incoming packet into a PDU-E struct
-                            j = 1;
-                            packetE.type = readPacket[0];
-                            while(readPacket[j] != '\0'){ 
-                                packetE.errMsg[j-1] = readPacket[j];
-                                j++;
+                switch(readPacket[0]){
+                    case 'E':
+                        // Copies incoming packet into a PDU-E struct
+                        j = 1;
+                        packetE.type = readPacket[0];
+                        while(readPacket[j] != '\0'){ 
+                            packetE.errMsg[j-1] = readPacket[j];
+                            j++;
+                        }
+                        // Output to user
+                        printf("Error downloading content:\n");
+                        printf("    %s\n", packetE.errMsg);
+                        printf("\n");
+                        break;
+                    case 'S':
+                        // Copies incoming packet into a PDU-S struct
+                        packetS.type = readPacket[0];
+                        for(j = 0; j < sizeof(readPacket); j++){
+                            if (j < 10){
+                                packetS.peerName[j] = readPacket[j+1]; // 1 to 10
                             }
-                            // Output to user
-                            printf("Error downloading content:\n");
-                            printf("    %s\n", packetE.errMsg);
-                            printf("\n");
-                            break;
-                        case 'S':
-                            // Copies incoming packet into a PDU-S struct
-                            packetS.type = readPacket[0];
-                            for(j = 0; j < sizeof(readPacket); j++){
-                                if (j < 10){
-                                    packetS.peerName[j] = readPacket[j+1]; // 1 to 10
-                                }
-                                packetS.contentNameOrAddress[j] = readPacket[j+11]; // 11 to 100
-                            }
+                            packetS.contentNameOrAddress[j] = readPacket[j+11]; // 11 to 100
+                        }
 
-                            // Info logging purposes only
-                            fprintf(stderr, "Parsed the incoming message into the following S-PDU:\n");
-                            fprintf(stderr, "   Type: %c\n", packetS.type);
-                            fprintf(stderr, "   Peer Name: %s\n", packetS.peerName);
-                            fprintf(stderr, "   Address: %s\n", packetS.contentNameOrAddress);
+                        // Info logging purposes only
+                        fprintf(stderr, "Parsed the incoming message into the following S-PDU:\n");
+                        fprintf(stderr, "   Type: %c\n", packetS.type);
+                        fprintf(stderr, "   Peer Name: %s\n", packetS.peerName);
+                        fprintf(stderr, "   Address: %s\n", packetS.contentNameOrAddress);
 
-                            // Handles requesting a download from peer with address [packetS.contentNameOrAddress] 
-                            // with content name [userInput]
-                            downloadContent(userInput, packetS.contentNameOrAddress);
-                            break;
-                    }
-                    break;
-                case 'O':   // List all the content available on the index server
-                    listIndexServerContent();
-                    break;
-                case 'L':   // List all local content registered
-                    listLocalContent();
-                    break;
-                case 'Q':   // De-register all local content from the server and quit
-                    for(j = 0; j < numOfLocalContent; j++){
-                        deregisterContent(localContentName[j]);
-                    }
-                    quit = 1;
-                    break;
-                default:
-                    printf("Invalid choice, try again\n");
-            } 
-            printTasks(); 
-        }
+                        // Handles requesting a download from peer with address [packetS.contentNameOrAddress] 
+                        // with content name [userInput]
+                        downloadContent(userInput, packetS.contentNameOrAddress);
+                        break;
+                }
+                break;
+            case 'O':   // List all the content available on the index server
+                listIndexServerContent();
+                break;
+            case 'L':   // List all local content registered
+                listLocalContent();
+                break;
+            case 'Q':   // De-register all local content from the server and quit
+                for(j = 0; j < numOfLocalContent; j++){
+                    deregisterContent(localContentName[j]);
+                }
+                quit = 1;
+                break;
+            default:
+                printf("Invalid choice, try again\n");
+        } 
     }
     close(s_udp);
     close(s_tcp);
