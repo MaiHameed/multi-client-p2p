@@ -74,6 +74,8 @@ int main(int argc, char *argv[])
   struct  tpacket packetrecieve;
   struct  tpacket packetsend;
   int     r_host, r_port;
+  char tcp_port[6];
+	char tcp_ip_addr[5];
 
   // Socket Primitives
   struct  sockaddr_in fsin;	        /* the from address of a client	*/
@@ -244,14 +246,22 @@ int main(int argc, char *argv[])
             endPointer = endPointer+1;
 
             // TODO: Send S Packet with host and port
+            packetsend.type = 'S';
+            memset(packetsend.data, '\0', 100);
+            memset(tcp_ip_addr, '\0',sizeof(tcp_ip_addr));
+            memset(tcp_port, '\0', sizeof(tcp_port));
+					  snprintf (tcp_port, sizeof(tcp_port), "%d", tempContentBlock.host);
+		        snprintf (tcp_ip_addr, sizeof(tcp_ip_addr), "%d",tempContentBlock.port);
+		        memcpy(packetsend.data, tcp_ip_addr, 5);
+		        memcpy(packetsend.data+5, tcp_port, 6);
           }
           else {
             // Send Error Message
             packetsend.type = 'E';
             memset(packetsend.data, '\0', 100);
 					  strcpy(packetsend.data,"Content Not Found");
-					  sendto(s, &packetsend, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           }
+          sendto(s, &packetsend, BUFLEN, 0,(struct sockaddr *)&fsin, sizeof(fsin));
           break;
         
         /* Peer Server Content List Request */
