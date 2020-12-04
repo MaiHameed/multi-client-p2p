@@ -412,6 +412,7 @@ void downloadContent(char contentName[], char address[]){
     struct  pdu     sendPacket; 
 
     // Construct a D-PDU to send to the content server
+    memset(&packetD, '\0', sizeof(packetD));          // Sets terminating characters to all elements
     packetD.type = 'D';
     memcpy(packetD.peerName, peerName, 10);
     memcpy(packetD.content, contentName, 90);
@@ -589,11 +590,9 @@ int main(int argc, char **argv){
                     break;
                 case 'D':   // Download content
                     printf("Enter the name of the content you would like to download:\n");
-                    //memset(userInput, 0, 10);
-                    //read(0, userInput, 10);
-                    scanf("%.10s", userInput);
+                    scanf("%9s", userInput);
 
-                    // Infor logging purposes only
+                    // Info logging purposes only
                     fprintf(stderr, "User wants to download the following content name:\n");
                     for(j = 0; j < sizeof(userInput); j++){
                         fprintf(stderr, "   %d: %c\n", j, userInput[j]);
@@ -637,8 +636,8 @@ int main(int argc, char **argv){
                             // Info logging purposes only
                             fprintf(stderr, "Parsed the incoming message into the following S-PDU:\n");
                             fprintf(stderr, "   Type: %c\n", packetS.type);
-                            fprintf(stderr, "   Peer Name: &s\n", packetS.peerName);
-                            fprintf(stderr, "   Address: &s\n", packetS.contentNameOrAddress);
+                            fprintf(stderr, "   Peer Name: %s\n", packetS.peerName);
+                            fprintf(stderr, "   Address: %s\n", packetS.contentNameOrAddress);
 
                             // Handles requesting a download from peer with address [packetS.contentNameOrAddress] 
                             // with content name [userInput]
