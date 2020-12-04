@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/socket.h> 
 #include <sys/time.h> 
+#include <time.h> 
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <sys/time.h> 
+
 
 // User defined files
 #include "ds.h"
@@ -23,7 +24,8 @@ char localContentPort[5][6];                // Stores the port number associated
 int numOfLocalContent = 0;                  // Stores number of saved local content
 
 // TCP Socket variables
-int listOfSockets[5] = {0};                 // 5 TCP ports to listen to
+int fdArray[5] = {0};                       // 5 TCP ports to listen to
+struct sockaddr_in socketArray[5];
 int max_sd = 0;
 int activity;                               // Tracks I/O activity on sockets
 fd_set  readfds;                            // List of socket descriptors
@@ -34,10 +36,16 @@ int		port = 3000;                        // Default UDP port
 int		s_udp, s_tcp, new_tcp, n, type;	    // socket descriptor and socket type	
 struct 	hostent	*phe;	                    // pointer to host information entry	
 
-void addToLocalContent(char contentName[], char port[], int socket){
+void delay(int ms){
+    clock_t start_time = clock(); 
+    while (clock() < start_time + ms); 
+}
+
+void addToLocalContent(char contentName[], char port[], int socket, struct sockaddr_in server){
     strcpy(localContentName[numOfLocalContent], contentName);
     strcpy(localContentPort[numOfLocalContent], port);
-    listOfSockets[numOfLocalContent] = socket;
+    fdArray[numOfLocalContent] = socket;
+    socketArray[numOfLocalContent] = server;
     if (socket > max_sd){
         max_sd = socket;
     }
@@ -46,6 +54,7 @@ void addToLocalContent(char contentName[], char port[], int socket){
     fprintf(stderr, "Added the following content to the local list of contents:\n");
     fprintf(stderr, "   Content Name: %s\n", localContentName[numOfLocalContent]);
     fprintf(stderr, "   Port: %s\n", localContentPort[numOfLocalContent]);
+    fprintf(stderr, "   Socket: %d\n", socket);
 
     numOfLocalContent++;
 }
@@ -68,14 +77,15 @@ void removeFromLocalContent(char contentName[]){
              // Sets terminating characters to all elements
             memset(localContentName[j], '\0', sizeof(localContentName[j]));         
             memset(localContentPort[j], '\0', sizeof(localContentPort[j]));  
-            listOfSockets[j] = 0;        
+            fdArray[j] = 0;       
             fprintf(stderr, "Element successfully deleted\n");
 
             // This loop moves all elements underneath the one deleted up one to fill the gap
             while(j < numOfLocalContent - 1){
                 strcpy(localContentName[j], localContentName[j+1]);
                 strcpy(localContentPort[j], localContentPort[j+1]);
-                listOfSockets[j] = listOfSockets[j+1];
+                fdArray[j] = fdArray[j+1];
+                socketArray[j] =  socketArray[j+1];
                 j++;
             }
             foundElement = 1;
@@ -116,7 +126,7 @@ void registerContent(char contentName[]){
     char    readPacket[101];                // Temp placeholder for incoming message from index server
     
     // TCP connection variables        
-    struct 	sockaddr_in content_server_sin;
+    struct 	sockaddr_in server;
     int     tcp_host, tcp_port;             // The generated TCP host and port into easier to call variables
 
     // Create a TCP stream socket	
@@ -124,20 +134,21 @@ void registerContent(char contentName[]){
 		fprintf(stderr, "Can't create a TCP socket\n");
 		exit(1);
 	}
-    bzero((char *)&content_server_sin, sizeof(struct sockaddr_in));
-	content_server_sin.sin_family = AF_INET;
-	content_server_sin.sin_port = htons(0);
-	content_server_sin.sin_addr.s_addr = htonl(INADDR_ANY);
+    bzero((char *)&server, sizeof(struct sockaddr_in));
+	server.sin_family = AF_INET;
+	server.sin_port = htons(0);
+	server.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	bind(s_tcp, (struct sockaddr *)&content_server_sin, sizeof(content_server_sin));
+	bind(s_tcp, (struct sockaddr *)&server, sizeof(server));
+    listen(s_tcp, 5);
 	
-	socklen_t sin_len = sizeof(content_server_sin);
-	if (getsockname(s_tcp, (struct sockaddr *)&content_server_sin, &sin_len) == -1) {
+	socklen_t sin_len = sizeof(server);
+	if (getsockname(s_tcp, (struct sockaddr *)&server, &sin_len) == -1) {
 		fprintf(stderr, "Can't get TCP socket name %d\n", s_tcp);
 		exit(1);
 	}
-    tcp_host = content_server_sin.sin_addr.s_addr;
-    tcp_port = content_server_sin.sin_port;
+    tcp_host = server.sin_addr.s_addr;
+    tcp_port = server.sin_port;
     fprintf(stderr, "Successfully generated a TCP socket\n");
 	fprintf(stderr, "TCP socket address %d\n", tcp_host);
 	fprintf(stderr, "TCP socket port %d\n", tcp_port);
@@ -235,7 +246,7 @@ void registerContent(char contentName[]){
             printf("    Host: %s\n", packetR.host);
             printf("    Port: %s\n", packetR.port);
             printf("\n");
-            addToLocalContent(packetR.contentName, packetR.port, s_tcp);
+            addToLocalContent(packetR.contentName, packetR.port, s_tcp, server);
             break;
         default:
             printf("Unable to read incoming message from server\n\n");
@@ -288,7 +299,7 @@ void listLocalContent(){
     printf("List of names of the locally registered content:\n");
     printf("Number\t\tName\t\tPort\t\tSocket\n");
     for(j = 0; j < numOfLocalContent; j++){
-        printf("%d\t\t%s\t\t%s\t\t%d\n", j, localContentName[j], localContentPort[j], listOfSockets[j]);
+        printf("%d\t\t%s\t\t%s\t\t%d\n", j, localContentName[j], localContentPort[j], fdArray[j]);
     }
     printf("\n");
 }
@@ -524,27 +535,28 @@ int main(int argc, char **argv){
     struct pduE     packetE;                // Used to parse incoming Error messages
     struct pduS     packetS;                // Used to parse incoming S type PDUs   
 
+    // Prompt user to select task
+    printTasks();
     while(!quit){
-        // Prompt user to select task
-        printTasks();
-
-        FD_ZERO(&readfds);          // Clear the socket set
-        FD_SET(0, &readfds);        // Set STDIN as a socket to listen to
-
+        
+        // Clear the socket set
+        FD_ZERO(&readfds);         
+        FD_SET(0, &readfds);        
         // Add sockets to set
         for(j = 0; j < numOfLocalContent; j++){
-            FD_SET(listOfSockets[j], &readfds);
+            FD_SET(fdArray[j], &readfds);
         }
 
-        activity = select(max_sd+1, &readfds, NULL, NULL, NULL);
+        activity = select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
 
         for(j = 0; j < numOfLocalContent; j++){
-            if(FD_ISSET(listOfSockets[j], &readfds)){
-                fprintf(stderr, "Detected activity on socket: %d\n", listOfSockets[j]);
+            if(FD_ISSET(fdArray[j], &readfds)){
+                //fprintf(stderr, "Detected activity on socket: %d\n", fdArray[j]);
             }
         }
 
         if(FD_ISSET(0, &readfds)){
+            fprintf(stderr, "Detected activity in STDIN\n");
             read(0, userChoice, 2);
             // Perform task
             switch(userChoice[0]){
@@ -631,8 +643,10 @@ int main(int argc, char **argv){
                     break;
                 default:
                     printf("Invalid choice, try again\n");
-            }  
-        }  
+            } 
+            printTasks(); 
+        }
+        delay(10);
     }
     close(s_udp);
     close(s_tcp);
