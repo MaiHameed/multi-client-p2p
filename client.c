@@ -1,7 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h> 
 #include <sys/time.h> 
-#include <time.h> 
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +8,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-
 
 // User defined files
 #include "ds.h"
@@ -35,11 +33,6 @@ char	*host = "localhost";                // Default UDP host
 int		port = 3000;                        // Default UDP port                
 int		s_udp, s_tcp, new_tcp, n, type;	    // socket descriptor and socket type	
 struct 	hostent	*phe;	                    // pointer to host information entry	
-
-void delay(int ms){
-    clock_t start_time = clock(); 
-    while (clock() < start_time + ms); 
-}
 
 void addToLocalContent(char contentName[], char port[], int socket, struct sockaddr_in server){
     strcpy(localContentName[numOfLocalContent], contentName);
@@ -110,11 +103,6 @@ void printTasks(){
     printf("    O: List all the content available on the index server\n");
     printf("    L: List all local content registered\n");
     printf("    Q: To de-register all local content from the server and quit\n");
-}
-
-int fileTransfer(int tcp){
-    // TODO: Implement local file transfer over TCP
-    exit(0); // Success and exit
 }
 
 void registerContent(char contentName[]){
@@ -469,6 +457,19 @@ void downloadContent(char contentName[], char address[]){
     registerContent(contentName);
 }
 
+int uploadFile(int sd){
+    struct  pdu readPacket;
+    int         bytesRead;
+
+    bytesRead = read(sd, (struct pdu*)&readPacket, sizeof(readPacket));
+    fprintf(stderr, "Currently handling socket %d\n", sd);
+    fprintf(stderr, "   Read in %d bytes of data\n", bytesRead);
+    fprintf(stderr, "   Type: %c\n", readPacket.type);
+    fprintf(stderr, "   Data: %s\n", readPacket.data);
+
+    return 0;
+}
+
 int main(int argc, char **argv){
     
     // Checks input arguments and assigns host:port connection to server
@@ -551,7 +552,23 @@ int main(int argc, char **argv){
 
         for(j = 0; j < numOfLocalContent; j++){
             if(FD_ISSET(fdArray[j], &readfds)){
-                //fprintf(stderr, "Detected activity on socket: %d\n", fdArray[j]);
+                fprintf(stderr, "Detected activity on socket: %d\n", fdArray[j]);
+                struct sockaddr_in client;
+                int client_len = sizeof(client);
+                int new_sd;
+                new_sd = accept(fdArray[j], (struct sockaddr *)&client, &client_len);
+               
+               if(new_sd < 0) {
+					fprintf(stderr, "Can't accept client\n");
+				}				
+				if (fork() == 0) {
+					fprintf(stderr, "Accepted client on socket: %d\n", fdArray[j]);
+					close(fdArray[j]);
+					exit(uploadFile(new_sd));
+				}
+				else {
+					close(new_sd);
+				}
             }
         }
 
@@ -646,7 +663,6 @@ int main(int argc, char **argv){
             } 
             printTasks(); 
         }
-        delay(10);
     }
     close(s_udp);
     close(s_tcp);
