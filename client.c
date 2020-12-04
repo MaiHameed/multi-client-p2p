@@ -45,21 +45,25 @@ void removeFromLocalContent(char contentName[]){
     int foundElement = 0;
 
     // This for loop parses the local list of content names for the requested content name
+    fprintf(stderr, "Attempting to remove the following content:\n");
+    fprintf(stderr, "   Content Name: %s\n", contentName);
     for(j = 0; j < numOfLocalContent; j++){
-        if(strcmp(localContentName[j], contentName)){
+        if(strcmp(localContentName[j], contentName) == 0){
             // the requested name was found in the list, proceed to delete element in both name and port lists
             printf("The following content was deleted:\n");
             printf("    Content Name: %s\n", localContentName[j]);
-            printf("    Port: %s\n", localContentPort[j]);
+            printf("    Port: %s\n\n", localContentPort[j]);
 
-            // Delete element
-            strcpy(localContentName[j], '\0');
-            strcpy(localContentPort[j], '\0');
+             // Sets terminating characters to all elements
+            memset(localContentName[j], '\0', sizeof(localContentName[j]));         
+            memset(localContentPort[j], '\0', sizeof(localContentPort[j]));          
+            fprintf(stderr, "Element successfully deleted\n");
 
             // This loop moves all elements underneath the one deleted up one to fill the gap
             while(j < numOfLocalContent - 1){
                 strcpy(localContentName[j], localContentName[j+1]);
                 strcpy(localContentPort[j], localContentPort[j+1]);
+                j++;
             }
             foundElement = 1;
             break;
@@ -69,7 +73,9 @@ void removeFromLocalContent(char contentName[]){
     // Sends an error message to the user if the requested content was not found
     if(!foundElement){
         printf("Error, the requested content name was not found in the list:\n");
-        printf("    Content Name: %s\n", contentName);
+        printf("    Content Name: %s\n\n", contentName);
+    }else{
+        numOfLocalContent--;
     }
 }
 
@@ -124,6 +130,7 @@ void registerContent(char contentName[]){
 	fprintf(stderr, "TCP socket port %d\n", tcp_port);
 
     // Build R type PDU to send to index server
+    memset(&packetR, '\0', sizeof(packetR));          // Sets terminating characters to all elements
     memcpy(packetR.contentName, contentName, 10);
     memcpy(packetR.peerName, peerName, 10);
     sprintf(packetR.host, "%d", tcp_host);
@@ -174,7 +181,16 @@ void registerContent(char contentName[]){
     
     // Wait for message from the server and check the first byte of packet to determine the PDU type (A or E)
     readLength = read(s_udp, readPacket, BUFLEN);
-    int i = 1;
+
+    // Logging purposes only
+    int i = 0;
+    fprintf(stderr, "Received the following packet from the index server:\n");
+    while(readPacket[i] != '\0'){ 
+        fprintf(stderr, "%d: %c\n", i, readPacket[i]);
+        i++;
+    }
+
+    i = 1;
     struct pduE packetE;                    // Potential responses from the index server
     struct pduA packetA;
     switch(readPacket[0]){       
@@ -218,13 +234,14 @@ void deregisterContent(char contentName[]){
     struct pdu sendPacket;
 
     //  Build the T type PDU
+    memset(&packetT, '\0', sizeof(packetT));          // Sets terminating characters to all elements (initializer)
     packetT.type = 'T';
     memcpy(packetT.peerName, peerName, sizeof(packetT.peerName));
     memcpy(packetT.contentName, contentName, sizeof(packetT.contentName));
 
     // Parse the T type into a general PDU for transmission
     // sendPacket.data = [peerName]+[contentName]
-    memset(&sendPacket, '\0', sizeof(sendPacket));          // Sets terminating characters to all elements
+    memset(&sendPacket, '\0', sizeof(sendPacket));          // Sets terminating characters to all elements (initializer)
     int dataOffset = 0;
 
     sendPacket.type = packetT.type;
@@ -260,6 +277,7 @@ void listLocalContent(){
     for(j = 0; j < numOfLocalContent; j++){
         printf("%d\t\t%s\t\t%s\n", j, localContentName[j], localContentPort[j]);
     }
+    printf("\n");
 }
 
 void pingIndexFor(char contentName[]){
@@ -483,12 +501,12 @@ int main(int argc, char **argv){
         switch(userChoice[0]){
             case 'R':   // Register content to the index server
                 printf("Enter a valid content name, 9 characters or less:\n");
-                scanf("%9s", userInput);         // Get user input for content name
+                scanf("%9s", userInput);      
                 registerContent(userInput);
                 break;
             case 'T':   // De-register content
                 printf("Enter the name of the content you would like to de-register:\n");
-                read(0, userInput, 10);
+                scanf("%9s", userInput);   
                 deregisterContent(userInput);
                 break;
             case 'D':   // Download content
