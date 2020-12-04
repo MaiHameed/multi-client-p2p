@@ -258,24 +258,33 @@ void registerContent(char contentName[]){
                                 memcpy(fileName, incomingPacket.data+10, strlen(incomingPacket.data+10));
                                 //fileName[strlen(incomingPacket.data+10)] =  '\0';
                                 fprintf(stderr, "Recieved the file name from the D data type:\n");
+                                fprintf(stderr, "   %s\n", fileName);
                                 for(m = 0; m < sizeof(fileName); m++){
-                                    fprintf(stderr, "   %d: %c\n", m, fileName[m]);
+                                    fprintf(stderr, "   %d: %c\n", m, &fileName+m);
                                 }
                                 FILE *file;
-                                file = fopen(fileName, "r");
+                                file = fopen(fileName, "rb");
                                 if(!file){
                                     fprintf(stderr, "File: %s does not exist locally\n", fileName);
                                 }else{
                                     fprintf(stderr, "Content server found file locally, prepping to send to client\n");
+                                    memset(sendContent.content, '\0', sizeof(sendContent.content));
                                     sendContent.type = 'C';
-                                    while(fgets(sendContent.content, sizeof(sendContent.content), file) != NULL ){
+                                    while(fgets(sendContent.content, sizeof(sendContent.content), file) > 0){
+                                        write(new_tcp, &sendContent, sizeof(sendContent));
+                                        fprintf(stderr, "Wrote the following to the client:\n %s\n", sendContent.content);
+                                        //memset(sendContent.content, '\0', sizeof(sendContent.content));
+                                    }
+                                    /*
+                                    while(fread(&sendContent.content, 1, sizeof(sendContent.content), file) > 0){
                                         fprintf(stderr, "Sending the following C type content data:\n");
-                                        for(m = 0; m < sizeof(sendContent.content); m++){
-                                            fprintf(stderr, "   %d: %c\n", m, sendContent.content[m]);
+                                        for(m = 0; m < sizeof(sendContent); m++){
+                                            fprintf(stderr, "   %d: %c\n", m, &sendContent+m);
                                         }
                                         write(new_tcp, &sendContent, sizeof(sendContent));
                                         memset(sendContent.content, '\0', sizeof(sendContent.content));
                                     }
+                                    */
                                 }
                                 fprintf(stderr, "Closing content server\n");
                                 fclose(file);
@@ -516,16 +525,17 @@ void downloadContent(char contentName[], char address[]){
     
     // File download variables
     FILE    *fp;
-    struct  pdu     readBuffer; 
+    struct  pduC     readBuffer; 
     int     receivedContent = 0;
 
     // Download the data
     fp = fopen(contentName, "w+");
+    memset(&readBuffer, '\0', sizeof(readBuffer)); // Clearing readBuffer  
     while ((m = read(downloadSocket, (struct pdu*)&readBuffer, sizeof(readBuffer))) > 0){
         fprintf(stderr, "Received the following data from the content server\n");
         fprintf(stderr, "   Type: %c\n", readBuffer.type);
         for(m = 0; m < sizeof(readBuffer); m++){
-            fprintf(stderr, "   %d: %c\n", m, readBuffer.data+m);
+            fprintf(stderr, "   %d: %c\n", m, readBuffer.content+m);
         }
         if(readBuffer.type == 'C'){
             fprintf(stderr, "Successfully received a C type packet from the content server, commencing download\n");
@@ -536,6 +546,7 @@ void downloadContent(char contentName[], char address[]){
         }else{
             fprintf(stderr, "Received garbage from the content server, discarding\n");
         }
+        memset(&readBuffer, '\0', sizeof(readBuffer)); // Clearing readBuffer 
     }
 
     if(receivedContent){
